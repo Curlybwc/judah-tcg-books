@@ -52,6 +52,19 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
 11. **PWA icons** are a simple self-drawn Poké-ball-style mark (no Nintendo artwork),
     generated locally. Swap freely.
 
+14. **Pre-real-use pack (Jen approved 2026-11-06, audit items 2/6/7).** (a) Stock
+    guard at three levels: the Sell flow flags a matched row asking for more than
+    the lot holds ("Only N on hand — will be skipped", excluded from math/saving,
+    with a hint to pick the other purchase of the same product); the store skips
+    overstock rows defensively; the database rejects negative stock with a CHECK
+    constraint (migration 005, proved by execution — a −1 update fails 23514).
+    A row is never partially fulfilled across lots in v1 — re-match it to the
+    right lot instead. (b) Stock adjustments: "Adjust stock" on What I Have For
+    Sale removes units without a sale, with a reason (damaged / kept / returned /
+    lost / other) written to `stock_adjustments` as the paper trail. (c) The
+    Profit screen's stock value now sits under a full-width amber banner:
+    "SAMPLE PRICES — demo numbers, NOT real market prices yet."
+
 13. **Fix bundle (Jen approved 2026-11-05, audit items 1/4/15).** (a) Duplicate-import
     guard at two levels: the app flags CSV rows whose order + product + qty + line
     total already exist ("Already imported — will be skipped", excluded from math and

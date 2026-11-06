@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../lib/store";
 import { money } from "../lib/math";
-import { Chip, ScreenTitle } from "../components/ui";
+import { ScreenTitle } from "../components/ui";
 
 function startOfWeek(): Date { const d = new Date(); const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); d.setHours(0, 0, 0, 0); return d; }
 function startOfMonth(): Date { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); }
@@ -46,10 +46,13 @@ export default function Profit() {
         <p className="text-4xl font-black text-slate-900">{money(giovanniOwed)}</p>
         <p className="text-slate-700 text-sm">He has already paid you back {money(paidBack)} by Zelle.</p>
       </div>
-      <div className="rounded-3xl bg-slate-800 border border-slate-700 p-5 mb-5">
-        <p className="text-slate-400 font-semibold text-sm">Your for-sale stock could sell for about</p>
-        <p className="text-3xl font-black text-white mt-1">{money(stockValue)}</p>
-        <p className="text-slate-400 text-sm">{units} items in stock · <Chip tone="amber">at SAMPLE prices</Chip></p>
+      <div className="rounded-3xl bg-slate-800 border-2 border-amber-500/70 overflow-hidden mb-5">
+        <p className="bg-amber-500 text-slate-900 font-black text-center text-sm px-4 py-2">⚠️ SAMPLE PRICES — demo numbers, NOT real market prices yet</p>
+        <div className="p-5">
+          <p className="text-slate-400 font-semibold text-sm">At sample prices, your for-sale stock would be about</p>
+          <p className="text-3xl font-black text-white mt-1">{money(stockValue)}</p>
+          <p className="text-slate-400 text-sm">{units} items in stock. This number becomes real when the live price lookup is turned on.</p>
+        </div>
       </div>
 
       <h2 className="text-white font-bold text-lg mb-2">Recent sales</h2>

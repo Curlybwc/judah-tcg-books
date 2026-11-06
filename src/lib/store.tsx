@@ -52,6 +52,7 @@ interface Store {
   recordSales: (rows: { lot: Lot; qty: number; unitItemPrice: number; shippingCharged: number; shippingPaid: number; orderId: string | null; soldOn: string; orderGroupFirst?: boolean }[]) => Promise<Sale[]>;
   addGiovanniPayment: (amount: number, paidOn: string, note: string) => Promise<void>;
   deleteSale: (sale: Sale) => Promise<void>;
+  adjustStock: (lot: Lot, qtyRemoved: number, reason: string) => Promise<void>;
   undoPurchaseForLot: (lot: Lot) => Promise<boolean>;
   deleteGiovanniPayment: (id: string) => Promise<void>;
   recordBankImport: (filename: string, rowCount: number) => Promise<void>;
@@ -161,6 +162,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const owner = ownerRef.current;
     const out: Sale[] = [];
     for (const row of rows) {
+      if (row.qty > row.lot.qty_on_hand) continue; // stock guard: never sell more than on hand
       const m = saleMath({ qty: row.qty, unitItemPrice: row.unitItemPrice, shippingCharged: row.shippingCharged, shippingPaid: row.shippingPaid, costBasisUnit: row.lot.cost_basis_unit, judahPct: row.lot.judah_pct });
       if (row.orderGroupFirst === false) { // $0.30 transaction flat is per ORDER, not per row
         m.transactionFee = Math.round((m.transactionFee - 0.3) * 100) / 100;
@@ -246,6 +248,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     applyLocal((d) => ({ ...d, payments: d.payments.filter((p) => p.id !== id) }));
   }, [applyLocal]);
 
+  const adjustStock: Store["adjustStock"] = useCallback(async (lot, qtyRemoved, reason) => {
+    const qty = Math.min(Math.max(0, qtyRemoved), lot.qty_on_hand);
+    if (qty <= 0) return;
+    const product = data.products.find((p) => p.id === lot.product_id);
+    if (remoteRef.current) {
+      try {
+        const r = await supabase.from("stock_adjustments").insert({ owner_id: ownerRef.current, lot_id: lot.id, product_name: product?.name ?? "Product", qty_removed: qty, reason });
+        if (r.error) throw r.error;
+        const u = await supabase.from("inventory_lots").update({ qty_on_hand: lot.qty_on_hand - qty }).eq("id", lot.id);
+        if (u.error) throw u.error;
+      } catch { setNotice("Couldn't save that adjustment in the cloud — check your connection and try again."); return; }
+    }
+    applyLocal((d) => ({ ...d, lots: d.lots.map((l) => (l.id === lot.id ? { ...l, qty_on_hand: l.qty_on_hand - qty } : l)) }));
+  }, [data.products, applyLocal]);
+
   const recordBankImport: Store["recordBankImport"] = useCallback(async (filename, rowCount) => {
     if (remoteRef.current) {
       try { await supabase.from("bank_imports").insert({ owner_id: ownerRef.current, filename, row_count: rowCount, status: "stub" }); } catch { /* stub — ignore */ }
@@ -261,7 +278,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const value: Store = {
     ready, remote, notice, userEmail, ownerId,
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
-    giovanniOwed, signIn, signOut, addPurchase, recordSales, addGiovanniPayment, deleteSale, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
+    giovanniOwed, signIn, signOut, addPurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
     reload: () => load(ownerRef.current),
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

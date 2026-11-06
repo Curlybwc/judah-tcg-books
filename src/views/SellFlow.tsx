@@ -105,16 +105,23 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
   }), [rows, lotById, existingSales, products]);
   const dupCount = dupFlags.filter(Boolean).length;
 
+  // Stock guard: a matched row asking for more than the lot holds is skipped, never sold negative.
+  const overFlags = useMemo(() => rows.map((r) => {
+    const lot = lotById.get(r.lotId);
+    return !!lot && r.qty > lot.qty_on_hand;
+  }), [rows, lotById]);
+  const overCount = overFlags.filter(Boolean).length;
+
   const orders = useMemo(() => {
     const seen: string[] = [];
-    rows.forEach((r, i) => { if (!dupFlags[i] && !seen.includes(r.orderId)) seen.push(r.orderId); });
+    rows.forEach((r, i) => { if (!dupFlags[i] && !overFlags[i] && !seen.includes(r.orderId)) seen.push(r.orderId); });
     return seen;
-  }, [rows, dupFlags]);
+  }, [rows, dupFlags, overFlags]);
 
   const computed = useMemo(() => rows.map((r, i) => {
     const lot = lotById.get(r.lotId);
-    if (!lot || dupFlags[i]) return null;
-    const firstInOrder = rows.findIndex((x, j) => x.orderId === r.orderId && !dupFlags[j]) === rows.indexOf(r);
+    if (!lot || dupFlags[i] || overFlags[i]) return null;
+    const firstInOrder = rows.findIndex((x, j) => x.orderId === r.orderId && !dupFlags[j] && !overFlags[j]) === rows.indexOf(r);
     const sp = firstInOrder ? parseFloat(shipPaid[r.orderId]) || 0 : 0;
     const m = saleMath({ qty: r.qty, unitItemPrice: r.unitPrice, shippingCharged: r.shippingCharged, shippingPaid: sp, costBasisUnit: lot.cost_basis_unit, judahPct: lot.judah_pct });
     if (!firstInOrder) { // $0.30 flat fee is per ORDER, not per row
@@ -125,10 +132,10 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
       m.judahShare = Math.round(m.netProceeds * (lot.judah_pct / 100) * 100) / 100;
     }
     return { row: r, lot, math: m, firstInOrder };
-  }), [rows, lotById, shipPaid, dupFlags]);
+  }), [rows, lotById, shipPaid, dupFlags, overFlags]);
 
   const allMatched = rows.length > 0 && rows.every((r, i) => dupFlags[i] || r.lotId);
-  const hasNewRows = rows.some((_, i) => !dupFlags[i]);
+  const hasSavable = rows.some((r, i) => !dupFlags[i] && !overFlags[i] && r.lotId);
   const totals = useMemo(() => {
     let profit = 0, share = 0, net = 0;
     for (const c of computed) if (c) { profit += c.math.profit; share += c.math.judahShare; net += c.math.netProceeds; }
@@ -186,6 +193,8 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
                   </div>
                   {dupFlags[i]
                     ? <p className="mt-2"><Chip tone="amber">Already imported — will be skipped</Chip></p>
+                    : overFlags[i]
+                    ? <p className="mt-2"><Chip tone="red">Only {lot?.qty_on_hand} on hand — this sale asks for {r.qty}. Will be skipped</Chip></p>
                     : lot ? <p className="mt-2"><Chip tone="green">{ownerLabel(lot.owner_kind, lot.judah_pct)}</Chip> <span className="text-slate-400 text-sm">cost {money(lot.cost_basis_unit)} each</span></p>
                     : <p className="mt-2"><Chip tone="red">Not matched yet</Chip></p>}
                 </div>
@@ -193,8 +202,9 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
             })}
           </div>
           {dupCount > 0 && <p className="text-amber-300 text-sm mb-3">⚠️ {dupCount} sale{dupCount === 1 ? " is" : "s are"} already in your books from this file — {dupCount === 1 ? "it" : "they"} will be skipped, not counted twice.</p>}
-          {!hasNewRows
-            ? <BigButton color="slate" onClick={() => go("home")}>Everything here is already imported — back to start</BigButton>
+          {overCount > 0 && <p className="text-rose-300 text-sm mb-3">⚠️ {overCount} sale{overCount === 1 ? "" : "s"} ask{overCount === 1 ? "s" : ""} for more than you have in stock — check the match {overCount === 1 ? "is" : "are"} right, or {overCount === 1 ? "it" : "they"} will be skipped. If you sold from a different purchase of the same product, pick that one.</p>}
+          {!hasSavable
+            ? <BigButton color="slate" onClick={() => go("home")}>{dupCount === rows.length ? "Everything here is already imported — back to start" : "Nothing here can be saved — back to start"}</BigButton>
             : <BigButton disabled={!allMatched} onClick={() => setStep(2)}>{allMatched ? "Matches look right →" : "Match every sale to continue"}</BigButton>}
         </div>
       )}
@@ -236,6 +246,7 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
             ))}
           </div>
           {dupCount > 0 && <p className="text-amber-300 text-sm mb-3">Skipping {dupCount} already-imported sale{dupCount === 1 ? "" : "s"} — not counted below.</p>}
+          {overCount > 0 && <p className="text-rose-300 text-sm mb-3">Skipping {overCount} sale{overCount === 1 ? "" : "s"} that asked for more than you have in stock — not counted below.</p>}
           <div className="rounded-2xl bg-slate-800 border border-yellow-500/50 p-4 mb-4">
             <MathRow label="Total profit" value={money(totals.profit)} bold />
             <MathRow label="Giovanni collected for you" value={money(totals.share)} bold />

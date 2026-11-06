@@ -28,7 +28,9 @@ npm test         # money-math test (19 assertions against the real math module)
 Safety nets built in: re-importing the same TCGplayer file skips rows already in
 the books (the database enforces it too); sales, buys, and Giovanni payments can
 all be undone from the app (two-tap confirm; a buy can't be undone once something
-has sold from it).
+has sold from it); a sale can never exceed the stock on hand (flagged in the app,
+skipped in the save, and rejected by the database); stock can be adjusted without
+a sale (damaged / kept / returned / lost) with the reason kept on record.
 
 To put it on Judah's phone: deploy `dist/` to any static host (or `npm run preview`
 on the home network), open the URL on the phone, and "Add to Home Screen".
