@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { useStore } from "../lib/store";
 import { money, saleMath } from "../lib/math";
-import { BigButton, Chip, Field, inputCls, MathRow, ScreenTitle, StepRail, ownerLabel } from "../components/ui";
+import { BigButton, Chip, inputCls, MathRow, ScreenTitle, StepRail, ownerLabel } from "../components/ui";
 import type { View } from "../App";
 import type { Lot } from "../lib/types";
 
