@@ -22,7 +22,13 @@ npm install
 npm run dev      # local dev server
 npm run build    # production build (tsc + vite, PWA service worker + manifest)
 npm run preview  # serve the production build
+npm test         # money-math test (19 assertions against the real math module)
 ```
+
+Safety nets built in: re-importing the same TCGplayer file skips rows already in
+the books (the database enforces it too); sales, buys, and Giovanni payments can
+all be undone from the app (two-tap confirm; a buy can't be undone once something
+has sold from it).
 
 To put it on Judah's phone: deploy `dist/` to any static host (or `npm run preview`
 on the home network), open the URL on the phone, and "Add to Home Screen".

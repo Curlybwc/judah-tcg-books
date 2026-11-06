@@ -1,0 +1,41 @@
+// Committed math test — run with `npm test`.
+// Compiles the app's real src/lib/math.ts and checks the hand-verified numbers
+// from the README self-test. If a future edit changes fee math, this fails loudly.
+import { execFileSync } from "node:child_process";
+import { cpSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const tmp = mkdtempSync(join(tmpdir(), "jtb-math-"));
+cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
+execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
+const { purchaseMath, saleMath, giovanniBalance } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+
+let fails = 0;
+function eq(label, actual, expected) {
+  const ok = Math.abs(actual - expected) < 0.001;
+  if (!ok) fails++;
+  console.log(`${ok ? "PASS" : "FAIL"} ${label}: expected ${expected}, got ${actual}`);
+}
+
+const buy = purchaseMath(4, 55, 18, 12);
+eq("buy totalCost", buy.totalCost, 250.0);
+eq("buy costBasisUnit", buy.costBasisUnit, 62.5);
+
+const a = saleMath({ qty: 1, unitItemPrice: 79.99, shippingCharged: 4.99, shippingPaid: 5.5, costBasisUnit: 62.5, judahPct: 100 });
+eq("A base", a.base, 84.98); eq("A commission", a.commission, 9.14); eq("A txnFee", a.transactionFee, 2.42);
+eq("A fees", a.fees, 11.56); eq("A net", a.netProceeds, 67.92); eq("A profit", a.profit, 5.42); eq("A judahShare", a.judahShare, 67.92);
+
+const b = saleMath({ qty: 2, unitItemPrice: 49.99, shippingCharged: 4.99, shippingPaid: 5.5, costBasisUnit: 32.0, judahPct: 50 });
+eq("B base", b.base, 104.97); eq("B commission", b.commission, 11.28); eq("B txnFee", b.transactionFee, 2.92);
+eq("B fees", b.fees, 14.2); eq("B net", b.netProceeds, 85.27); eq("B profit", b.profit, 21.27); eq("B judahShare", b.judahShare, 42.64);
+
+eq("giovanni owed after sales", giovanniBalance(a.judahShare + b.judahShare, 0), 110.56);
+eq("giovanni owed after $50 Zelle", giovanniBalance(a.judahShare + b.judahShare, 50), 60.56);
+eq("total profit A+B", Math.round((a.profit + b.profit) * 100) / 100, 26.69);
+
+console.log(fails === 0 ? "ALL MATH TESTS PASSED" : `${fails} FAILURES`);
+process.exit(fails ? 1 : 0);

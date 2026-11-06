@@ -51,6 +51,9 @@ interface Store {
   addPurchase: (input: { name: string; barcode?: string; qty: number; unitPrice: number; tax: number; shippingIn: number; ownerKind: "mine" | "giovanni" | "split"; judahPct: number; paidVia: "USAA" | "Cash" | "Other" }) => Promise<Purchase>;
   recordSales: (rows: { lot: Lot; qty: number; unitItemPrice: number; shippingCharged: number; shippingPaid: number; orderId: string | null; soldOn: string; orderGroupFirst?: boolean }[]) => Promise<Sale[]>;
   addGiovanniPayment: (amount: number, paidOn: string, note: string) => Promise<void>;
+  deleteSale: (sale: Sale) => Promise<void>;
+  undoPurchaseForLot: (lot: Lot) => Promise<boolean>;
+  deleteGiovanniPayment: (id: string) => Promise<void>;
   recordBankImport: (filename: string, rowCount: number) => Promise<void>;
   reload: () => Promise<void>;
 }
@@ -202,6 +205,47 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     applyLocal((d) => ({ ...d, payments: [payment, ...d.payments] }));
   }, [applyLocal]);
 
+  const deleteSale: Store["deleteSale"] = useCallback(async (sale) => {
+    if (remoteRef.current) {
+      try {
+        const d = await supabase.from("sales").delete().eq("id", sale.id); if (d.error) throw d.error;
+        if (sale.lot_id) {
+          const lot = data.lots.find((l) => l.id === sale.lot_id);
+          if (lot) { const u = await supabase.from("inventory_lots").update({ qty_on_hand: lot.qty_on_hand + sale.qty }).eq("id", lot.id); if (u.error) throw u.error; }
+        }
+      } catch { setNotice("Couldn't undo that in the cloud — check your connection and try again."); return; }
+    }
+    applyLocal((d) => ({
+      ...d,
+      sales: d.sales.filter((s) => s.id !== sale.id),
+      lots: sale.lot_id ? d.lots.map((l) => (l.id === sale.lot_id ? { ...l, qty_on_hand: l.qty_on_hand + sale.qty } : l)) : d.lots,
+    }));
+  }, [data.lots, applyLocal]);
+
+  const undoPurchaseForLot: Store["undoPurchaseForLot"] = useCallback(async (lot) => {
+    if (data.sales.some((s) => s.lot_id === lot.id)) return false; // already sold from — can't undo the buy
+    if (remoteRef.current) {
+      try {
+        const d1 = await supabase.from("inventory_lots").delete().eq("id", lot.id); if (d1.error) throw d1.error;
+        if (lot.purchase_id) { const d2 = await supabase.from("purchases").delete().eq("id", lot.purchase_id); if (d2.error) throw d2.error; }
+      } catch { setNotice("Couldn't undo that in the cloud — check your connection and try again."); return false; }
+    }
+    applyLocal((d) => ({
+      ...d,
+      lots: d.lots.filter((l) => l.id !== lot.id),
+      purchases: lot.purchase_id ? d.purchases.filter((p) => p.id !== lot.purchase_id) : d.purchases,
+    }));
+    return true;
+  }, [data.sales, applyLocal]);
+
+  const deleteGiovanniPayment: Store["deleteGiovanniPayment"] = useCallback(async (id) => {
+    if (remoteRef.current) {
+      try { const d = await supabase.from("giovanni_payments").delete().eq("id", id); if (d.error) throw d.error; }
+      catch { setNotice("Couldn't delete that in the cloud — check your connection and try again."); return; }
+    }
+    applyLocal((d) => ({ ...d, payments: d.payments.filter((p) => p.id !== id) }));
+  }, [applyLocal]);
+
   const recordBankImport: Store["recordBankImport"] = useCallback(async (filename, rowCount) => {
     if (remoteRef.current) {
       try { await supabase.from("bank_imports").insert({ owner_id: ownerRef.current, filename, row_count: rowCount, status: "stub" }); } catch { /* stub — ignore */ }
@@ -217,7 +261,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const value: Store = {
     ready, remote, notice, userEmail, ownerId,
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
-    giovanniOwed, signIn, signOut, addPurchase, recordSales, addGiovanniPayment, recordBankImport,
+    giovanniOwed, signIn, signOut, addPurchase, recordSales, addGiovanniPayment, deleteSale, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
     reload: () => load(ownerRef.current),
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

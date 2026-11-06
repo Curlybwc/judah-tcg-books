@@ -52,6 +52,18 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
 11. **PWA icons** are a simple self-drawn Poké-ball-style mark (no Nintendo artwork),
     generated locally. Swap freely.
 
+13. **Fix bundle (Jen approved 2026-11-05, audit items 1/4/15).** (a) Duplicate-import
+    guard at two levels: the app flags CSV rows whose order + product + qty + line
+    total already exist ("Already imported — will be skipped", excluded from math and
+    saving), and the database enforces it with the partial unique index
+    `sales_no_duplicate_import` (migration 004) — a duplicate insert fails with 23505
+    even if the UI is bypassed. (b) Undo: sales can be undone from Check My Profit
+    (stock returns to the lot), a buy can be undone from What I Have For Sale while
+    nothing has sold from that lot (blocked afterward), and Giovanni payments can be
+    deleted from the new payment-history list on the Profit screen. All undo buttons
+    are two-tap (tap → "tap again to confirm"). (c) The 19-assertion math test is
+    committed as `scripts/test-math.mjs` — run `npm test` after touching fee math.
+
 12. **Deployed to GitHub Pages** (repo is public, Pages is free) at
     https://curlybwc.github.io/judah-tcg-books/ so the morning phone test needs no
     hosting setup: open the link, Add to Home Screen. Vite `base` is set from the
