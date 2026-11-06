@@ -10,6 +10,11 @@ with a visible step rail; a button press makes the step happen.
 
 Design + math spec: [SPEC.md](SPEC.md) · Judgment calls: [DECISIONS.md](DECISIONS.md)
 
+**▶ Live demo: https://curlybwc.github.io/judah-tcg-books/** — open it on Judah's
+phone and "Add to Home Screen" to install it as an app. (Deployed from the
+`gh-pages` branch; rebuild with `PAGES_BASE=/judah-tcg-books/ npm run build` and
+republish `dist/` to update it.)
+
 ## Run it
 
 ```bash

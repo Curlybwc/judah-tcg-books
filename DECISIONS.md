@@ -51,3 +51,10 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
 
 11. **PWA icons** are a simple self-drawn Poké-ball-style mark (no Nintendo artwork),
     generated locally. Swap freely.
+
+12. **Deployed to GitHub Pages** (repo is public, Pages is free) at
+    https://curlybwc.github.io/judah-tcg-books/ so the morning phone test needs no
+    hosting setup: open the link, Add to Home Screen. Vite `base` is set from the
+    `PAGES_BASE` env var only for the Pages build; local dev keeps base `/`.
+    If Jen later wants the repo private, move hosting to Netlify/Vercel free tier —
+    the app itself doesn't change.
