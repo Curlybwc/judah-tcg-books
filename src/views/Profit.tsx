@@ -1,0 +1,81 @@
+import { useMemo } from "react";
+import { useStore } from "../lib/store";
+import { money } from "../lib/math";
+import { Chip, ScreenTitle } from "../components/ui";
+
+function startOfWeek(): Date { const d = new Date(); const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); d.setHours(0, 0, 0, 0); return d; }
+function startOfMonth(): Date { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); }
+
+export default function Profit() {
+  const { sales, payments, giovanniOwed, lots, products } = useStore();
+  const { week, month, all, weekCount } = useMemo(() => {
+    const w = startOfWeek().getTime(), m = startOfMonth().getTime();
+    let week = 0, month = 0, all = 0, weekCount = 0;
+    for (const s of sales) {
+      const t = new Date(s.sold_on + "T12:00:00").getTime();
+      all += Number(s.profit);
+      if (t >= m) month += Number(s.profit);
+      if (t >= w) { week += Number(s.profit); weekCount++; }
+    }
+    const r = (n: number) => Math.round(n * 100) / 100;
+    return { week: r(week), month: r(month), all: r(all), weekCount };
+  }, [sales]);
+
+  const stockValue = useMemo(() => {
+    let v = 0;
+    for (const lot of lots) {
+      const p = products.find((x) => x.id === lot.product_id);
+      if (p?.market_price) v += lot.qty_on_hand * Number(p.market_price);
+    }
+    return Math.round(v * 100) / 100;
+  }, [lots, products]);
+  const units = lots.reduce((s, l) => s + l.qty_on_hand, 0);
+  const paidBack = payments.reduce((s, p) => s + Number(p.amount), 0);
+
+  return (
+    <div>
+      <ScreenTitle title="📈 Check My Profit" sub="Real math from your buys and sales." />
+      <div className="grid gap-3 mb-4">
+        <ProfitCard label="Profit this week" value={week} sub={`${weekCount} sale${weekCount === 1 ? "" : "s"} this week`} />
+        <ProfitCard label="Profit this month" value={month} />
+        <ProfitCard label="Profit all time" value={all} />
+      </div>
+      <div className="rounded-3xl bg-gradient-to-br from-yellow-400 to-amber-500 p-5 mb-3">
+        <p className="text-slate-800 font-semibold text-sm">Giovanni owes you</p>
+        <p className="text-4xl font-black text-slate-900">{money(giovanniOwed)}</p>
+        <p className="text-slate-700 text-sm">He has already paid you back {money(paidBack)} by Zelle.</p>
+      </div>
+      <div className="rounded-3xl bg-slate-800 border border-slate-700 p-5 mb-5">
+        <p className="text-slate-400 font-semibold text-sm">Your for-sale stock could sell for about</p>
+        <p className="text-3xl font-black text-white mt-1">{money(stockValue)}</p>
+        <p className="text-slate-400 text-sm">{units} items in stock · <Chip tone="amber">at SAMPLE prices</Chip></p>
+      </div>
+
+      <h2 className="text-white font-bold text-lg mb-2">Recent sales</h2>
+      {sales.length === 0 && <p className="text-slate-400">No sales yet. When you sell on TCGplayer, upload the orders file and they'll show up here.</p>}
+      <div className="grid gap-2">
+        {sales.slice(0, 10).map((s) => (
+          <div key={s.id} className="rounded-2xl bg-slate-800 border border-slate-700 px-4 py-3 flex justify-between items-center">
+            <div>
+              <p className="text-white font-semibold">{s.product_name} × {s.qty}</p>
+              <p className="text-slate-400 text-sm">{s.sold_on} · your share {money(Number(s.judah_share))}</p>
+            </div>
+            <span className={`font-black ${Number(s.profit) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{money(Number(s.profit))}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProfitCard({ label, value, sub }: { label: string; value: number; sub?: string }) {
+  return (
+    <div className="rounded-3xl bg-slate-800 border border-slate-700 p-5 flex items-center justify-between">
+      <div>
+        <p className="text-slate-400 font-semibold text-sm">{label}</p>
+        {sub && <p className="text-slate-500 text-sm">{sub}</p>}
+      </div>
+      <p className={`text-3xl font-black ${value >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{money(value)}</p>
+    </div>
+  );
+}

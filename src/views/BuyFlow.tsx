@@ -1,0 +1,165 @@
+import { useMemo, useRef, useState } from "react";
+import { useStore } from "../lib/store";
+import { money, purchaseMath } from "../lib/math";
+import { BigButton, Field, inputCls, MathRow, MoneyInput, ScreenTitle, StepRail } from "../components/ui";
+import type { View } from "../App";
+
+const STEPS = ["What is it?", "How many & price", "Tax & shipping", "Whose is it?", "How did you pay?", "Check the math", "Done"];
+
+export default function BuyFlow({ go }: { go: (v: View) => void }) {
+  const { addPurchase, products } = useStore();
+  const [step, setStep] = useState(0);
+  const [name, setName] = useState("");
+  const [barcode, setBarcode] = useState("");
+  const [qty, setQty] = useState("1");
+  const [unitPrice, setUnitPrice] = useState("");
+  const [tax, setTax] = useState("");
+  const [shippingIn, setShippingIn] = useState("");
+  const [ownerKind, setOwnerKind] = useState<"mine" | "giovanni" | "split">("mine");
+  const [splitPct, setSplitPct] = useState(50);
+  const [paidVia, setPaidVia] = useState<"USAA" | "Cash" | "Other">("USAA");
+  const [saving, setSaving] = useState(false);
+  const [savedBasis, setSavedBasis] = useState<number | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const q = parseInt(qty) || 0;
+  const up = parseFloat(unitPrice) || 0;
+  const tx = parseFloat(tax) || 0;
+  const sh = parseFloat(shippingIn) || 0;
+  const math = useMemo(() => purchaseMath(q, up, tx, sh), [q, up, tx, sh]);
+  const suggestions = useMemo(() => {
+    const t = name.trim().toLowerCase();
+    if (t.length < 2) return [];
+    return products.filter((p) => p.name.toLowerCase().includes(t)).slice(0, 4);
+  }, [name, products]);
+
+  async function save() {
+    setSaving(true);
+    const p = await addPurchase({ name: name.trim(), barcode: barcode || undefined, qty: q, unitPrice: up, tax: tx, shippingIn: sh, ownerKind, judahPct: splitPct, paidVia });
+    setSavedBasis(p.cost_basis_unit);
+    setSaving(false);
+    setStep(6);
+  }
+
+  return (
+    <div>
+      <ScreenTitle title="🛒 I Bought Product" sub="One step at a time. Big buttons only." />
+      <StepRail steps={STEPS} current={step} />
+
+      {step === 0 && (
+        <div>
+          <Field label="Type the product name (or tap one you already have)">
+            <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. 151 Elite Trainer Box" autoFocus />
+          </Field>
+          {suggestions.map((p) => (
+            <button key={p.id} onClick={() => setName(p.name)} className="block w-full text-left rounded-xl bg-slate-800 border border-slate-700 px-4 py-3 mb-2 text-white">{p.name}</button>
+          ))}
+          <Field label="Barcode (optional — type it or scan with your camera app)">
+            <input className={inputCls} value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Barcode numbers" inputMode="numeric" />
+          </Field>
+          <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={() => { if (!name) setName("Photo product (rename me)"); }} />
+          <button onClick={() => fileRef.current?.click()} className="w-full rounded-2xl bg-slate-700 text-white py-3.5 font-semibold mb-4">📷 Take a photo of it instead</button>
+          <BigButton disabled={name.trim().length < 2} onClick={() => setStep(1)}>That's it →</BigButton>
+        </div>
+      )}
+
+      {step === 1 && (
+        <div>
+          <p className="text-white text-lg font-bold mb-3">{name}</p>
+          <Field label="How many did you buy?">
+            <input className={inputCls} inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ""))} />
+          </Field>
+          <Field label="Price for EACH one (before tax)">
+            <MoneyInput value={unitPrice} onChange={setUnitPrice} />
+          </Field>
+          <BigButton disabled={q < 1 || up <= 0} onClick={() => setStep(2)}>Next →</BigButton>
+          <BackBtn onClick={() => setStep(0)} />
+        </div>
+      )}
+
+      {step === 2 && (
+        <div>
+          <Field label="Tax you paid (total for everything)">
+            <MoneyInput value={tax} onChange={setTax} placeholder="0.00" />
+          </Field>
+          <Field label="Shipping you paid to GET it (total)">
+            <MoneyInput value={shippingIn} onChange={setShippingIn} placeholder="0.00" />
+          </Field>
+          <p className="text-slate-400 text-sm mb-4">Bought it in a store? Shipping is $0. Tax is on your receipt.</p>
+          <BigButton onClick={() => setStep(3)}>Next →</BigButton>
+          <BackBtn onClick={() => setStep(1)} />
+        </div>
+      )}
+
+      {step === 3 && (
+        <div>
+          <p className="text-slate-300 mb-3 font-semibold">Whose product is this?</p>
+          <div className="grid gap-3 mb-4">
+            <PickBtn active={ownerKind === "mine"} onClick={() => setOwnerKind("mine")} label="🟡 Mine — I paid for it" />
+            <PickBtn active={ownerKind === "giovanni"} onClick={() => setOwnerKind("giovanni")} label="🔵 Giovanni's — he paid for it" />
+            <PickBtn active={ownerKind === "split"} onClick={() => setOwnerKind("split")} label="🟣 We split it" />
+          </div>
+          {ownerKind === "split" && (
+            <Field label={`My share: ${splitPct}%`}>
+              <input type="range" min={5} max={95} step={5} value={splitPct} onChange={(e) => setSplitPct(parseInt(e.target.value))} className="w-full accent-yellow-400" />
+              <div className="flex justify-between text-slate-400 text-sm"><span>Me {splitPct}%</span><span>Giovanni {100 - splitPct}%</span></div>
+            </Field>
+          )}
+          <BigButton onClick={() => setStep(4)}>Next →</BigButton>
+          <BackBtn onClick={() => setStep(2)} />
+        </div>
+      )}
+
+      {step === 4 && (
+        <div>
+          <p className="text-slate-300 mb-3 font-semibold">How did you pay?</p>
+          <div className="grid gap-3 mb-4">
+            {(["USAA", "Cash", "Other"] as const).map((v) => (
+              <PickBtn key={v} active={paidVia === v} onClick={() => setPaidVia(v)} label={v === "USAA" ? "🏦 USAA" : v === "Cash" ? "💵 Cash" : "❓ Other"} />
+            ))}
+          </div>
+          <BigButton onClick={() => setStep(5)}>Next →</BigButton>
+          <BackBtn onClick={() => setStep(3)} />
+        </div>
+      )}
+
+      {step === 5 && (
+        <div>
+          <div className="rounded-2xl bg-slate-800 border border-slate-700 p-4 mb-4">
+            <p className="text-white font-bold text-lg mb-1">{name}</p>
+            <MathRow label={`${q} × ${money(up)}`} value={money(q * up)} />
+            <MathRow label="Tax" value={money(tx)} />
+            <MathRow label="Shipping in" value={money(sh)} />
+            <MathRow label="You paid in total" value={money(math.totalCost)} bold />
+            <MathRow label="Cost per item (your cost basis)" value={money(math.costBasisUnit)} bold />
+          </div>
+          <p className="text-slate-400 text-sm mb-4">This cost per item is what the app uses to figure your profit when it sells.</p>
+          <BigButton color="green" disabled={saving} onClick={save}>{saving ? "Saving…" : "✓ Save it — I bought this"}</BigButton>
+          <BackBtn onClick={() => setStep(4)} />
+        </div>
+      )}
+
+      {step === 6 && (
+        <div className="text-center py-6">
+          <p className="text-6xl mb-3">✅</p>
+          <p className="text-white text-xl font-bold">Saved!</p>
+          <p className="text-slate-300 mt-2">{q} × {name} is now in your for-sale stock at {savedBasis !== null ? money(savedBasis) : ""} cost each.</p>
+          <div className="grid gap-3 mt-6">
+            <BigButton onClick={() => go("inventory")}>See what I have for sale</BigButton>
+            <BigButton color="slate" onClick={() => go("home")}>Back to start</BigButton>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BackBtn({ onClick }: { onClick: () => void }) {
+  return <button onClick={onClick} className="w-full py-3 mt-2 text-slate-400 font-semibold">← Back</button>;
+}
+function PickBtn({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+  return (
+    <button onClick={onClick} className={`w-full rounded-2xl px-5 py-4 text-left text-lg font-bold border ${active ? "bg-yellow-400 text-slate-900 border-yellow-300" : "bg-slate-800 text-white border-slate-700"}`}>{label}</button>
+  );
+}
