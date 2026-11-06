@@ -1,8 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { SAMPLE_OWNER_ID } from "./config";
-import type { GiovanniPayment, Lot, Product, Purchase, Sale } from "./types";
-import { purchaseMath, saleMath } from "./math";
+import type { GiovanniPayment, Lot, Product, Purchase, Sale, Show } from "./types";
+import { purchaseMath, quickSaleMath, saleMath } from "./math";
 
 // ---------- Local fallback seed (mirrors supabase/migrations/202611050003_seed_sample.sql) ----------
 const SEED_PRODUCTS: Product[] = [
@@ -20,15 +20,27 @@ const SEED_LOTS: Lot[] = [
   { id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc2", owner_id: SAMPLE_OWNER_ID, product_id: SEED_PRODUCTS[1].id, purchase_id: SEED_PURCHASES[1].id, qty_on_hand: 6, cost_basis_unit: 32, owner_kind: "split", judah_pct: 50 },
 ];
 
-interface LocalData { products: Product[]; purchases: Purchase[]; lots: Lot[]; sales: Sale[]; payments: GiovanniPayment[]; }
+interface LocalData { products: Product[]; purchases: Purchase[]; lots: Lot[]; sales: Sale[]; payments: GiovanniPayment[]; shows: Show[]; }
 const LOCAL_KEY = "jtb-local-v1";
 function loadLocal(): LocalData {
   try {
     const raw = localStorage.getItem(LOCAL_KEY);
-    if (raw) return JSON.parse(raw) as LocalData;
+    if (raw) { const d = JSON.parse(raw) as LocalData; if (!d.shows) d.shows = []; return d; }
   } catch { /* ignore */ }
-  return { products: SEED_PRODUCTS, purchases: SEED_PURCHASES, lots: SEED_LOTS, sales: [], payments: [] };
+  return { products: SEED_PRODUCTS, purchases: SEED_PURCHASES, lots: SEED_LOTS, sales: [], payments: [], shows: [] };
 }
+
+// ---------- Offline outbox: writes made with no signal queue here and push later ----------
+export type OutboxOp =
+  | { kind: "insert"; table: string; row: Record<string, unknown> }
+  | { kind: "lotDelta"; lotId: string; delta: number }
+  | { kind: "showPatch"; id: string; patch: Record<string, unknown> };
+const OUTBOX_KEY = "jtb-outbox-v1";
+function loadOutbox(): OutboxOp[] {
+  try { const raw = localStorage.getItem(OUTBOX_KEY); if (raw) return JSON.parse(raw) as OutboxOp[]; } catch { /* ignore */ }
+  return [];
+}
+function saveOutbox(ops: OutboxOp[]) { try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(ops)); } catch { /* ignore */ } }
 function saveLocal(d: LocalData) { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(d)); } catch { /* ignore */ } }
 export function uuid(): string {
   return (crypto as Crypto).randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => { const r = (Math.random() * 16) | 0; return (c === "x" ? r : (r & 0x3) | 0x8).toString(16); });
@@ -45,10 +57,17 @@ interface Store {
   lots: Lot[];
   sales: Sale[];
   payments: GiovanniPayment[];
+  shows: Show[];
+  activeShow: Show | null;
+  pendingCount: number;
+  syncNow: () => Promise<void>;
+  startShow: (name: string, showDate: string, tableFee: number, cashFloat: number) => Promise<Show>;
+  closeShow: (show: Show, cashCounted: number | null) => Promise<void>;
+  recordQuickSale: (input: { lot: Lot; qty: number; unitPrice: number; channel: "show_cash" | "show_venmo"; showId: string }) => Promise<Sale | null>;
   giovanniOwed: number;
   signIn: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
-  addPurchase: (input: { name: string; barcode?: string; qty: number; unitPrice: number; tax: number; shippingIn: number; ownerKind: "mine" | "giovanni" | "split"; judahPct: number; paidVia: "USAA" | "Cash" | "Other" }) => Promise<Purchase>;
+  addPurchase: (input: { name: string; barcode?: string; qty: number; unitPrice: number; tax: number; shippingIn: number; ownerKind: "mine" | "giovanni" | "split"; judahPct: number; paidVia: "USAA" | "Cash" | "Other"; showId?: string }) => Promise<Purchase>;
   recordSales: (rows: { lot: Lot; qty: number; unitItemPrice: number; shippingCharged: number; shippingPaid: number; orderId: string | null; soldOn: string; orderGroupFirst?: boolean }[]) => Promise<Sale[]>;
   addGiovanniPayment: (amount: number, paidOn: string, note: string) => Promise<void>;
   deleteSale: (sale: Sale) => Promise<void>;
@@ -67,7 +86,9 @@ export function useStore(): Store {
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [data, setData] = useState<LocalData>({ products: [], purchases: [], lots: [], sales: [], payments: [] });
+  const [data, setData] = useState<LocalData>({ products: [], purchases: [], lots: [], sales: [], payments: [], shows: [] });
+  const [outbox, setOutbox] = useState<OutboxOp[]>(() => loadOutbox());
+  const outboxRef = useRef<OutboxOp[]>(outbox);
   const [ready, setReady] = useState(false);
   const [remote, setRemote] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -75,23 +96,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [ownerId, setOwnerId] = useState<string>(SAMPLE_OWNER_ID);
   const remoteRef = useRef(false);
   const ownerRef = useRef(SAMPLE_OWNER_ID);
+  const syncRef = useRef<() => Promise<void>>(async () => {});
 
   const load = useCallback(async (owner: string) => {
     try {
-      const [p, pu, l, s, g] = await Promise.all([
+      const [p, pu, l, s, g, sh] = await Promise.all([
         supabase.from("products").select("*").eq("owner_id", owner),
         supabase.from("purchases").select("*").eq("owner_id", owner).order("purchased_on", { ascending: false }),
         supabase.from("inventory_lots").select("*").eq("owner_id", owner),
         supabase.from("sales").select("*").eq("owner_id", owner).order("sold_on", { ascending: false }),
         supabase.from("giovanni_payments").select("*").eq("owner_id", owner).order("paid_on", { ascending: false }),
+        supabase.from("shows").select("*").eq("owner_id", owner).order("show_date", { ascending: false }),
       ]);
-      if (p.error || pu.error || l.error || s.error || g.error) throw new Error("supabase read failed");
+      if (p.error || pu.error || l.error || s.error || g.error || sh.error) throw new Error("supabase read failed");
       const d: LocalData = {
         products: (p.data ?? []) as Product[],
         purchases: (pu.data ?? []) as Purchase[],
         lots: (l.data ?? []) as Lot[],
         sales: (s.data ?? []) as Sale[],
         payments: (g.data ?? []) as GiovanniPayment[],
+        shows: (sh.data ?? []) as Show[],
       };
       setData(d); setRemote(true); remoteRef.current = true;
     } catch {
@@ -106,6 +130,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const user = sess.session?.user;
       if (user) { setUserEmail(user.email ?? null); setOwnerId(user.id); ownerRef.current = user.id; await load(user.id); }
       else await load(SAMPLE_OWNER_ID);
+      if (outboxRef.current.length) void syncRef.current(); // push anything queued while offline
     })();
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       const user = session?.user;
@@ -120,6 +145,52 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const applyLocal = useCallback((fn: (d: LocalData) => LocalData) => {
     setData((prev) => { const next = fn(prev); if (!remoteRef.current) saveLocal(next); return next; });
   }, []);
+
+  const enqueue = useCallback((ops: OutboxOp[]) => {
+    if (!ops.length) return;
+    const next = [...outboxRef.current, ...ops];
+    outboxRef.current = next; setOutbox(next); saveOutbox(next);
+  }, []);
+
+  // Execute outbox ops against Supabase. Returns the ops that still failed.
+  // An insert that hits a primary-key conflict (23505) counts as already applied —
+  // client-generated UUIDs make retries safe.
+  const runOps = useCallback(async (ops: OutboxOp[]): Promise<OutboxOp[]> => {
+    const failed: OutboxOp[] = [];
+    for (const op of ops) {
+      try {
+        if (op.kind === "insert") {
+          const r = await supabase.from(op.table).insert(op.row as never);
+          if (r.error && r.error.code !== "23505") throw r.error;
+        } else if (op.kind === "lotDelta") {
+          const cur = await supabase.from("inventory_lots").select("qty_on_hand").eq("id", op.lotId).single();
+          if (cur.error) throw cur.error;
+          const u = await supabase.from("inventory_lots").update({ qty_on_hand: Math.max(0, (cur.data?.qty_on_hand ?? 0) + op.delta) }).eq("id", op.lotId);
+          if (u.error) throw u.error;
+        } else if (op.kind === "showPatch") {
+          const u = await supabase.from("shows").update(op.patch as never).eq("id", op.id);
+          if (u.error) throw u.error;
+        }
+      } catch { failed.push(op); }
+    }
+    return failed;
+  }, []);
+
+  // Try ops now if we're online; queue whatever fails.
+  const commit = useCallback(async (ops: OutboxOp[]) => {
+    if (!remoteRef.current) { enqueue(ops); return; }
+    const failed = await runOps(ops);
+    if (failed.length) { enqueue(failed); setNotice("Saved on this phone — it will sync when you're back online. ☁️"); }
+  }, [enqueue, runOps]);
+
+  const syncNow = useCallback(async () => {
+    const ops = outboxRef.current;
+    if (!ops.length) return;
+    const failed = await runOps(ops);
+    outboxRef.current = failed; setOutbox(failed); saveOutbox(failed);
+    if (!failed.length) { setNotice("All caught up — everything is synced to the cloud. ✓"); await load(ownerRef.current); }
+    else setNotice(`${failed.length} item${failed.length === 1 ? "" : "s"} still waiting to sync — check your signal and tap sync again.`);
+  }, [runOps, load]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -137,18 +208,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       total_cost: totalCost, cost_basis_unit: costBasisUnit, owner_kind: input.ownerKind,
       judah_pct: input.ownerKind === "mine" ? 100 : input.ownerKind === "giovanni" ? 0 : input.judahPct,
       paid_via: input.paidVia, purchased_on: new Date().toISOString().slice(0, 10),
+      show_id: input.showId ?? null,
     };
     const newProduct: Product | null = product ? null : { id: uuid(), owner_id: owner, name: input.name, barcode: input.barcode ?? null, product_type: "sealed", market_price: null };
     if (newProduct) purchase.product_id = newProduct.id;
     product = product ?? (newProduct as Product);
     const lot: Lot = { id: uuid(), owner_id: owner, product_id: product.id, purchase_id: purchase.id, qty_on_hand: input.qty, cost_basis_unit: costBasisUnit, owner_kind: purchase.owner_kind, judah_pct: purchase.judah_pct };
-    if (remoteRef.current) {
-      try {
-        if (newProduct) { const r = await supabase.from("products").insert(newProduct); if (r.error) throw r.error; }
-        const r1 = await supabase.from("purchases").insert({ ...purchase }); if (r1.error) throw r1.error;
-        const r2 = await supabase.from("inventory_lots").insert(lot); if (r2.error) throw r2.error;
-      } catch { setNotice("Saved on this phone only — couldn't reach the cloud."); }
-    }
+    const ops: OutboxOp[] = [];
+    if (newProduct) ops.push({ kind: "insert", table: "products", row: { ...newProduct } as unknown as Record<string, unknown> });
+    ops.push({ kind: "insert", table: "purchases", row: { ...purchase } as unknown as Record<string, unknown> });
+    ops.push({ kind: "insert", table: "inventory_lots", row: { ...lot } as unknown as Record<string, unknown> });
+    await commit(ops);
     applyLocal((d) => ({
       ...d,
       products: newProduct ? [...d.products, newProduct] : d.products,
@@ -156,7 +226,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       lots: [...d.lots, lot],
     }));
     return purchase;
-  }, [data.products, applyLocal]);
+  }, [data.products, applyLocal, commit]);
 
   const recordSales: Store["recordSales"] = useCallback(async (rows) => {
     const owner = ownerRef.current;
@@ -263,14 +333,55 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     applyLocal((d) => ({ ...d, lots: d.lots.map((l) => (l.id === lot.id ? { ...l, qty_on_hand: l.qty_on_hand - qty } : l)) }));
   }, [data.products, applyLocal]);
 
+  const startShow: Store["startShow"] = useCallback(async (name, showDate, tableFee, cashFloat) => {
+    const show: Show = { id: uuid(), owner_id: ownerRef.current, name, show_date: showDate, table_fee: tableFee, cash_float: cashFloat, cash_counted: null, status: "open" };
+    await commit([{ kind: "insert", table: "shows", row: { ...show } as unknown as Record<string, unknown> }]);
+    applyLocal((d) => ({ ...d, shows: [show, ...d.shows] }));
+    return show;
+  }, [applyLocal, commit]);
+
+  const closeShow: Store["closeShow"] = useCallback(async (show, cashCounted) => {
+    await commit([{ kind: "showPatch", id: show.id, patch: { status: "closed", cash_counted: cashCounted } }]);
+    applyLocal((d) => ({ ...d, shows: d.shows.map((s) => (s.id === show.id ? { ...s, status: "closed" as const, cash_counted: cashCounted } : s)) }));
+  }, [applyLocal, commit]);
+
+  const recordQuickSale: Store["recordQuickSale"] = useCallback(async (input) => {
+    if (input.qty > input.lot.qty_on_hand || input.qty <= 0) return null; // stock guard
+    const m = quickSaleMath({ qty: input.qty, unitPrice: input.unitPrice, costBasisUnit: input.lot.cost_basis_unit, judahPct: input.lot.judah_pct });
+    const product = data.products.find((x) => x.id === input.lot.product_id);
+    const sale: Sale = {
+      id: uuid(), owner_id: ownerRef.current, product_id: input.lot.product_id, lot_id: input.lot.id,
+      product_name: product?.name ?? "Product", qty: input.qty, item_price: m.gross,
+      shipping_charged: 0, shipping_paid: 0, commission: 0, transaction_fee: 0, fees: 0,
+      net_proceeds: m.gross, cost_basis_total: m.costBasisTotal, profit: m.profit, judah_share: m.judahShare,
+      order_id: null, sold_on: new Date().toISOString().slice(0, 10), show_id: input.showId, channel: input.channel,
+    };
+    await commit([
+      { kind: "insert", table: "sales", row: { ...sale } as unknown as Record<string, unknown> },
+      { kind: "lotDelta", lotId: input.lot.id, delta: -input.qty },
+    ]);
+    applyLocal((d) => ({
+      ...d,
+      sales: [sale, ...d.sales],
+      lots: d.lots.map((l) => (l.id === input.lot.id ? { ...l, qty_on_hand: l.qty_on_hand - input.qty } : l)),
+    }));
+    return sale;
+  }, [data.products, applyLocal, commit]);
+
   const recordBankImport: Store["recordBankImport"] = useCallback(async (filename, rowCount) => {
     if (remoteRef.current) {
       try { await supabase.from("bank_imports").insert({ owner_id: ownerRef.current, filename, row_count: rowCount, status: "stub" }); } catch { /* stub — ignore */ }
     }
   }, []);
 
+  syncRef.current = syncNow;
+
+  const activeShow = useMemo(() => data.shows.find((s) => s.status === "open") ?? null, [data.shows]);
+
   const giovanniOwed = useMemo(() => {
-    const share = data.sales.reduce((s, x) => s + Number(x.judah_share), 0);
+    // Giovanni's balance is a TCGplayer-only number: he collects those payouts.
+    // Show sales are cash/Venmo in Judah's own hand, so they never enter it.
+    const share = data.sales.filter((x) => !x.channel || x.channel === "tcgplayer").reduce((s, x) => s + Number(x.judah_share), 0);
     const paid = data.payments.reduce((s, x) => s + Number(x.amount), 0);
     return Math.round((share - paid) * 100) / 100;
   }, [data.sales, data.payments]);
@@ -278,6 +389,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const value: Store = {
     ready, remote, notice, userEmail, ownerId,
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
+    shows: data.shows, activeShow, pendingCount: outbox.length, syncNow, startShow, closeShow, recordQuickSale,
     giovanniOwed, signIn, signOut, addPurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
     reload: () => load(ownerRef.current),
   };

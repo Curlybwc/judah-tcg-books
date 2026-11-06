@@ -12,7 +12,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const tmp = mkdtempSync(join(tmpdir(), "jtb-math-"));
 cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
 execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
-const { purchaseMath, saleMath, giovanniBalance } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
 
 let fails = 0;
 function eq(label, actual, expected) {
@@ -36,6 +36,17 @@ eq("B fees", b.fees, 14.2); eq("B net", b.netProceeds, 85.27); eq("B profit", b.
 eq("giovanni owed after sales", giovanniBalance(a.judahShare + b.judahShare, 0), 110.56);
 eq("giovanni owed after $50 Zelle", giovanniBalance(a.judahShare + b.judahShare, 50), 60.56);
 eq("total profit A+B", Math.round((a.profit + b.profit) * 100) / 100, 26.69);
+
+// Show mode (2026-11-06): in-person sale — no fees, no shipping.
+// 2 packs bought at a table for $32 basis each, sold cash at $45 each, mine.
+const q = quickSaleMath({ qty: 2, unitPrice: 45, costBasisUnit: 32, judahPct: 100 });
+eq("Q gross", q.gross, 90); eq("Q costBasisTotal", q.costBasisTotal, 64);
+eq("Q profit", q.profit, 26); eq("Q judahShare", q.judahShare, 90);
+// Split 50% with Giovanni: he is owed his half of the take, Judah's share is half the cash.
+const qs = quickSaleMath({ qty: 1, unitPrice: 79.99, costBasisUnit: 62.5, judahPct: 50 });
+eq("QS gross", qs.gross, 79.99); eq("QS profit", qs.profit, 17.49); eq("QS judahShare", qs.judahShare, 39.99); // half of 79.99 is 39.995 — the app's round2 rule lands on 39.99, same as everywhere else
+// Cash box: $200 float + $90 cash sales − $130 cash buys = $160 expected.
+eq("cash box expected", showCashExpected(200, 90, 130), 160);
 
 console.log(fails === 0 ? "ALL MATH TESTS PASSED" : `${fails} FAILURES`);
 process.exit(fails ? 1 : 0);

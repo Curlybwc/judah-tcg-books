@@ -55,6 +55,27 @@ export function giovanniBalance(salesJudahShareTotal: number, paymentsTotal: num
   return round2(salesJudahShareTotal - paymentsTotal);
 }
 
+export interface QuickSaleMath {
+  gross: number; // what the buyer handed over — no fees, no shipping at a show
+  costBasisTotal: number;
+  profit: number;
+  judahShare: number;
+}
+
+// In-person show sale: cash or Venmo, no TCGplayer fees, no shipping.
+export function quickSaleMath(args: { qty: number; unitPrice: number; costBasisUnit: number; judahPct: number }): QuickSaleMath {
+  const gross = round2(args.unitPrice * args.qty);
+  const costBasisTotal = round2(args.costBasisUnit * args.qty);
+  const profit = round2(gross - costBasisTotal);
+  const judahShare = round2(gross * (args.judahPct / 100));
+  return { gross, costBasisTotal, profit, judahShare };
+}
+
+// Cash box at a show: starting float + cash taken in − cash spent on buys.
+export function showCashExpected(cashFloat: number, cashSalesTotal: number, cashBuysTotal: number): number {
+  return round2(cashFloat + cashSalesTotal - cashBuysTotal);
+}
+
 export function money(n: number): string {
   const sign = n < 0 ? "-" : "";
   return `${sign}$${Math.abs(n).toFixed(2)}`;

@@ -56,14 +56,14 @@ export default function Profit() {
       </div>
 
       <h2 className="text-white font-bold text-lg mb-2">Recent sales</h2>
-      {sales.length === 0 && <p className="text-slate-400">No sales yet. When you sell on TCGplayer, upload the orders file and they'll show up here.</p>}
+      {sales.length === 0 && <p className="text-slate-400">No sales yet. TCGplayer sales show up when you upload the orders file; show sales show up from Show Mode.</p>}
       <div className="grid gap-2">
         {sales.slice(0, 10).map((s) => (
           <div key={s.id} className="rounded-2xl bg-slate-800 border border-slate-700 px-4 py-3">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-white font-semibold">{s.product_name} × {s.qty}</p>
-                <p className="text-slate-400 text-sm">{s.sold_on} · your share {money(Number(s.judah_share))}</p>
+                <p className="text-slate-400 text-sm">{s.sold_on} · {s.channel === "show_cash" ? "🎪 show · cash" : s.channel === "show_venmo" ? "🎪 show · Venmo" : `your share ${money(Number(s.judah_share))}`}</p>
               </div>
               <span className={`font-black ${Number(s.profit) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{money(Number(s.profit))}</span>
             </div>

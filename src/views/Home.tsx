@@ -4,7 +4,7 @@ import { JobButton } from "../components/ui";
 import type { View } from "../App";
 
 export default function Home({ go }: { go: (v: View) => void }) {
-  const { giovanniOwed, userEmail, remote, ready } = useStore();
+  const { giovanniOwed, userEmail, remote, ready, activeShow, pendingCount, syncNow } = useStore();
   return (
     <div>
       <div className="rounded-3xl bg-gradient-to-br from-yellow-400 to-amber-500 p-5 mb-5 shadow">
@@ -13,7 +13,14 @@ export default function Home({ go }: { go: (v: View) => void }) {
         <p className="text-slate-700 text-sm mt-1">He collects the TCGplayer payouts. This is your share he still needs to Zelle you.</p>
       </div>
 
+      {pendingCount > 0 && (
+        <button onClick={() => void syncNow()} className="w-full mb-4 rounded-2xl bg-sky-600 text-white py-3.5 font-bold">
+          ☁️ {pendingCount} item{pendingCount === 1 ? "" : "s"} waiting to sync — tap to sync now
+        </button>
+      )}
+
       <div className="grid gap-3">
+        <JobButton emoji="🎪" label="Show Mode" sub={activeShow ? `LIVE: ${activeShow.name} — tap to go back in` : "Show day? Buy and sell at the table here"} onClick={() => go("show")} />
         <JobButton emoji="🛒" label="I Bought Product" sub="Add something you just bought" onClick={() => go("buy")} />
         <JobButton emoji="💸" label="I Sold on TCGplayer" sub="Upload the orders file from TCGplayer" onClick={() => go("sell")} />
         <JobButton emoji="📷" label="Scan for Price" sub="What is this worth right now?" onClick={() => go("scan")} />

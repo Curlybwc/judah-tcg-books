@@ -26,6 +26,7 @@ export interface Purchase {
   judah_pct: number;
   paid_via: PaidVia;
   purchased_on: string;
+  show_id?: string | null;
   created_at?: string;
 }
 
@@ -60,6 +61,22 @@ export interface Sale {
   judah_share: number;
   order_id: string | null;
   sold_on: string;
+  show_id?: string | null;
+  channel?: SaleChannel;
+  created_at?: string;
+}
+
+export type SaleChannel = "tcgplayer" | "show_cash" | "show_venmo";
+
+export interface Show {
+  id: string;
+  owner_id: string;
+  name: string;
+  show_date: string;
+  table_fee: number;
+  cash_float: number;
+  cash_counted: number | null;
+  status: "open" | "closed";
   created_at?: string;
 }
 

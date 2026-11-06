@@ -9,8 +9,10 @@ import Profit from "./views/Profit";
 import Inventory from "./views/Inventory";
 import BankStub from "./views/BankStub";
 import Account from "./views/Account";
+import ShowDashboard, { ShowClose } from "./views/ShowMode";
+import { ShowBuy, ShowSell } from "./views/ShowTrade";
 
-export type View = "home" | "buy" | "sell" | "scan" | "giovanni" | "profit" | "inventory" | "bank" | "account";
+export type View = "home" | "buy" | "sell" | "scan" | "giovanni" | "profit" | "inventory" | "bank" | "account" | "show" | "showBuy" | "showSell" | "showClose";
 
 function Shell() {
   const [view, setView] = useState<View>("home");
@@ -43,6 +45,10 @@ function Shell() {
             {view === "inventory" && <Inventory go={go} />}
             {view === "bank" && <BankStub />}
             {view === "account" && <Account />}
+            {view === "show" && <ShowDashboard go={go} />}
+            {view === "showBuy" && <ShowBuy go={go} />}
+            {view === "showSell" && <ShowSell go={go} />}
+            {view === "showClose" && <ShowClose go={go} />}
           </>
         )}
       </main>

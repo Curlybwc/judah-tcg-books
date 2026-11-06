@@ -65,6 +65,27 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     Profit screen's stock value now sits under a full-width amber banner:
     "SAMPLE PRICES — demo numbers, NOT real market prices yet."
 
+15. **Show mode (Jen approved + commissioned 2026-11-06).** A show is a session
+    (shows table, migration 006): name, date, table fee, starting cash float,
+    closing cash count. Buys and sales made during it carry `show_id`; in-person
+    sales carry `channel` = show_cash / show_venmo (TCGplayer rows = 'tcgplayer').
+    Show sales use `quickSaleMath` — no fees, no shipping, profit = price − basis.
+    (a) **Giovanni's balance is TCGplayer-only.** He never touches show cash —
+    Judah holds it himself — so show sales are excluded from giovanniOwed even
+    though their rows carry a judah_share for profit reporting. Settling a split
+    lot sold at a show happens in person at the table in v1. (b) **Cash box** =
+    float + cash sales − cash buys (Venmo excluded — it isn't in the box); the
+    wrap-up screen compares it to the counted cash and flags a difference before
+    closing. (c) **Show profit** = profit on what sold − table fee; money spent
+    on new stock is shown separately (it's inventory, not an expense).
+    (d) **Offline outbox**: show-mode writes (and all buys) apply on the phone
+    first and push through a localStorage outbox when signal returns; client
+    UUIDs make retried inserts safe (23505 = already applied). A pending count
+    shows on Home and in Show Mode with a tap-to-sync button, and the app
+    auto-syncs on launch. Non-show TCGplayer imports still save directly.
+    (e) Buy-at-show market helper offers 50/60/70/80% of the (SAMPLE) market
+    price as one-tap offer prices — buylist discipline as a glance, not math.
+
 13. **Fix bundle (Jen approved 2026-11-05, audit items 1/4/15).** (a) Duplicate-import
     guard at two levels: the app flags CSV rows whose order + product + qty + line
     total already exist ("Already imported — will be skipped", excluded from math and

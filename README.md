@@ -8,6 +8,14 @@ Price · Giovanni Paid Me · Check My Profit · What I Have For Sale — plus on
 number: what Giovanni owes Judah right now. Every job is a step-by-step workflow
 with a visible step rail; a button press makes the step happen.
 
+**Show Mode** (added 2026-11-06) sits at the top of Home for card-show days: start
+a show (name, table fee, cash float), then a ten-second buylist entry (with
+50/60/70/80%-of-market offer chips), a quick cash/Venmo sale flow with no
+TCGplayer fees, a live cash-box number, and an end-of-show wrap-up that
+reconciles counted cash against the books. Everything tags to the show; past
+shows stack up as per-show profit reports. Show writes are offline-first: they
+save on the phone and sync to the cloud when signal returns.
+
 Design + math spec: [SPEC.md](SPEC.md) · Judgment calls: [DECISIONS.md](DECISIONS.md)
 
 **▶ Live demo: https://curlybwc.github.io/judah-tcg-books/** — open it on Judah's
@@ -22,7 +30,7 @@ npm install
 npm run dev      # local dev server
 npm run build    # production build (tsc + vite, PWA service worker + manifest)
 npm run preview  # serve the production build
-npm test         # money-math test (19 assertions against the real math module)
+npm test         # money-math test (28 assertions against the real math module)
 ```
 
 Safety nets built in: re-importing the same TCGplayer file skips rows already in
