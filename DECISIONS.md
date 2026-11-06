@@ -86,6 +86,38 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     (e) Buy-at-show market helper offers 50/60/70/80% of the (SAMPLE) market
     price as one-tap offer prices — buylist discipline as a glance, not math.
 
+18. **Bulk edit stock (Jen, 2026-11-06).** What I Have For Sale gets a Bulk edit
+    mode listing EVERY lot (zero-qty rows included — the normal view hides them,
+    which is how demo leftovers became invisible-but-present). Select many →
+    "Zero out selected" (goes through adjustStock with reason 'other', so the
+    paper trail survives) or "Remove selected rows completely" (deletes lot +
+    purchase, and the product too when nothing references it; two-tap confirm).
+    Rows something already sold from are refused by the store and reported as
+    skipped — history is never deleted out from under a sale. Bulk quantity
+    edits go DOWN only in v1 (zeroing + removal cover the "I don't have this"
+    case Jen raised); count-up corrections have no path yet.
+
+17. **Mom funding options (Jen, 2026-11-06; migration 008).** Two owner kinds
+    join mine/giovanni/split: `mom_payback` — Mom fronted the cost; the full
+    total_cost enters the owed-to-Mom ledger until repaid; sale proceeds are
+    Judah's. `mom_split` — consignment: on a sale, `momSplitMath` gives Mom her
+    cost back first, then the PROFIT splits at the lot's judah_pct (which on
+    these lots means Judah's share OF THE PROFIT, unlike Giovanni splits where
+    the % is of net proceeds); a losing sale sends all proceeds to Mom. The
+    sale's mom_share lands in the same ledger; on TCGplayer sales judah_share
+    is reduced to Judah's keep so Giovanni's balance stays honest. The ledger
+    lives on Check My Profit ("You owe Mom" card + repay logging + deletable
+    history, mom_payments table) — Home keeps its six buttons.
+
+16. **Tax as a rate (Jen, 2026-11-06; migration 007).** The buy flow takes the
+    tax RATE % off the receipt and calculates the dollars (`taxFromRate` =
+    subtotal × rate), because a receipt shows one rate for everything on it,
+    not a per-item tax total. The calculated dollars still land in
+    purchases.tax (all downstream math unchanged); the rate is stored in
+    purchases.tax_rate so the record matches the receipt. The rate field
+    remembers the last rate used (localStorage) since most buys are local.
+    Show buys stay tax-free (rate 0).
+
 13. **Fix bundle (Jen approved 2026-11-05, audit items 1/4/15).** (a) Duplicate-import
     guard at two levels: the app flags CSV rows whose order + product + qty + line
     total already exist ("Already imported — will be skipped", excluded from math and

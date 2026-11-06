@@ -12,7 +12,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const tmp = mkdtempSync(join(tmpdir(), "jtb-math-"));
 cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
 execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
-const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momSplitMath } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
 
 let fails = 0;
 function eq(label, actual, expected) {
@@ -47,6 +47,25 @@ const qs = quickSaleMath({ qty: 1, unitPrice: 79.99, costBasisUnit: 62.5, judahP
 eq("QS gross", qs.gross, 79.99); eq("QS profit", qs.profit, 17.49); eq("QS judahShare", qs.judahShare, 39.99); // half of 79.99 is 39.995 — the app's round2 rule lands on 39.99, same as everywhere else
 // Cash box: $200 float + $90 cash sales − $130 cash buys = $160 expected.
 eq("cash box expected", showCashExpected(200, 90, 130), 160);
+
+// Tax as a % the app calculates (Jen, 2026-11-06): receipts show one rate for everything.
+eq("tax 8% of 250", taxFromRate(250, 8), 20);
+eq("tax 8.5% of 220", taxFromRate(220, 8.5), 18.7);
+eq("tax 10% of 79.99", taxFromRate(79.99, 10), 8.0);
+eq("tax 0% is 0", taxFromRate(123.45, 0), 0);
+// End to end: 4 × $55 at 8.5% + $12 shipping = $250.70 total.
+eq("buy with rate-tax total", purchaseMath(4, 55, taxFromRate(220, 8.5), 12).totalCost, 250.7);
+
+// Mom consignment split: sale A numbers (net 67.92, cost 62.50), profit split 50/50.
+// Mom gets her 62.50 back + half the 5.42 profit = 65.21; Judah keeps 2.71.
+const ms = momSplitMath(67.92, 62.5, 50);
+eq("MS momShare", ms.momShare, 65.21); eq("MS judahKeep", ms.judahKeep, 2.71);
+// Losing sale: net 50 against 62.50 cost — all proceeds to Mom, Judah keeps 0.
+const ml = momSplitMath(50, 62.5, 50);
+eq("ML momShare", ml.momShare, 50); eq("ML judahKeep", ml.judahKeep, 0);
+// Judah takes 100% of profit: Mom gets exactly her cost back.
+const mf = momSplitMath(67.92, 62.5, 100);
+eq("MF momShare", mf.momShare, 62.5); eq("MF judahKeep", mf.judahKeep, 5.42);
 
 console.log(fails === 0 ? "ALL MATH TESTS PASSED" : `${fails} FAILURES`);
 process.exit(fails ? 1 : 0);

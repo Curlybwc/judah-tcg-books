@@ -12,7 +12,7 @@ export function ShowBuy({ go }: { go: (v: View) => void }) {
   const [name, setName] = useState("");
   const [qty, setQty] = useState(1);
   const [unitPrice, setUnitPrice] = useState("");
-  const [ownerKind, setOwnerKind] = useState<"mine" | "giovanni" | "split">("mine");
+  const [ownerKind, setOwnerKind] = useState<"mine" | "giovanni" | "split" | "mom_payback" | "mom_split">("mine");
   const [splitPct, setSplitPct] = useState(50);
   const [paidVia, setPaidVia] = useState<"Cash" | "Other">("Cash");
   const [market, setMarket] = useState<PriceResult | null>(null);
@@ -51,7 +51,7 @@ export function ShowBuy({ go }: { go: (v: View) => void }) {
   }
   async function save() {
     setSaving(true);
-    const p = await addPurchase({ name: name.trim(), qty, unitPrice: up, tax: 0, shippingIn: 0, ownerKind, judahPct: splitPct, paidVia, showId: activeShow!.id });
+    const p = await addPurchase({ name: name.trim(), qty, unitPrice: up, taxRate: 0, shippingIn: 0, ownerKind, judahPct: splitPct, paidVia, showId: activeShow!.id });
     setSaved({ basis: p.cost_basis_unit, total: p.total_cost });
     setSaving(false);
   }
@@ -92,15 +92,15 @@ export function ShowBuy({ go }: { go: (v: View) => void }) {
       <Field label="Price you paid for EACH one">
         <MoneyInput value={unitPrice} onChange={setUnitPrice} />
       </Field>
-      <div className="flex gap-2 mb-3">
-        {(["mine", "giovanni", "split"] as const).map((k) => (
-          <button key={k} onClick={() => setOwnerKind(k)} className={`flex-1 rounded-xl py-2.5 font-bold text-sm ${ownerKind === k ? "bg-yellow-400 text-slate-900" : "bg-slate-800 text-slate-200 border border-slate-700"}`}>
-            {k === "mine" ? "Mine" : k === "giovanni" ? "Giovanni's" : "Split"}
+      <div className="flex flex-wrap gap-2 mb-3">
+        {(["mine", "giovanni", "split", "mom_payback", "mom_split"] as const).map((k) => (
+          <button key={k} onClick={() => setOwnerKind(k)} className={`rounded-xl px-3 py-2.5 font-bold text-sm ${ownerKind === k ? "bg-yellow-400 text-slate-900" : "bg-slate-800 text-slate-200 border border-slate-700"}`}>
+            {k === "mine" ? "Mine" : k === "giovanni" ? "Giovanni's" : k === "split" ? "Split" : k === "mom_payback" ? "Mom — pay back" : "Mom — split profit"}
           </button>
         ))}
       </div>
-      {ownerKind === "split" && (
-        <Field label={`My share: ${splitPct}%`}>
+      {(ownerKind === "split" || ownerKind === "mom_split") && (
+        <Field label={ownerKind === "mom_split" ? `My share of the profit: ${splitPct}%` : `My share: ${splitPct}%`}>
           <input type="range" min={5} max={95} step={5} value={splitPct} onChange={(e) => setSplitPct(parseInt(e.target.value))} className="w-full accent-yellow-400" />
         </Field>
       )}
@@ -126,7 +126,7 @@ export function ShowSell({ go }: { go: (v: View) => void }) {
   const [price, setPrice] = useState("");
   const [channel, setChannel] = useState<"show_cash" | "show_venmo">("show_cash");
   const [saving, setSaving] = useState(false);
-  const [sold, setSold] = useState<{ profit: number; gross: number } | null>(null);
+  const [sold, setSold] = useState<{ profit: number; gross: number; momShare: number } | null>(null);
 
   const stock = useMemo(() => lots.filter((l) => l.qty_on_hand > 0), [lots]);
   const lot: Lot | undefined = stock.find((l) => l.id === lotId);
@@ -141,6 +141,7 @@ export function ShowSell({ go }: { go: (v: View) => void }) {
         <p className="text-6xl mb-3">💵</p>
         <p className="text-white text-xl font-bold">Sold for {money(sold.gross)}!</p>
         <p className="text-slate-300 mt-2">Profit on that sale: <span className={`font-bold ${sold.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{money(sold.profit)}</span></p>
+        {sold.momShare > 0 && <p className="text-slate-300 mt-1">Mom's share of that: <span className="font-bold text-white">{money(sold.momShare)}</span> — it's on the owed-to-Mom tab.</p>}
         <div className="grid gap-3 mt-6">
           <BigButton onClick={() => { setSold(null); setLotId(""); setPrice(""); setQty(1); }}>Sell another</BigButton>
           <BigButton color="slate" onClick={() => go("show")}>Back to the show</BigButton>
@@ -154,7 +155,7 @@ export function ShowSell({ go }: { go: (v: View) => void }) {
     setSaving(true);
     const s = await recordQuickSale({ lot, qty, unitPrice: unit, channel, showId: activeShow!.id });
     setSaving(false);
-    if (s) setSold({ profit: s.profit, gross: s.item_price });
+    if (s) setSold({ profit: s.profit, gross: s.item_price, momShare: Number(s.mom_share ?? 0) });
   }
 
   return (

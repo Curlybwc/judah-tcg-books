@@ -1,8 +1,11 @@
 import { useMemo, useRef, useState } from "react";
 import { useStore } from "../lib/store";
-import { money, purchaseMath } from "../lib/math";
+import { money, purchaseMath, taxFromRate } from "../lib/math";
 import { BigButton, Field, inputCls, MathRow, MoneyInput, ScreenTitle, StepRail } from "../components/ui";
 import type { View } from "../App";
+import type { OwnerKind } from "../lib/types";
+
+const TAX_RATE_KEY = "jtb-tax-rate";
 
 const STEPS = ["What is it?", "How many & price", "Tax & shipping", "Whose is it?", "How did you pay?", "Check the math", "Done"];
 
@@ -13,9 +16,9 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
   const [barcode, setBarcode] = useState("");
   const [qty, setQty] = useState("1");
   const [unitPrice, setUnitPrice] = useState("");
-  const [tax, setTax] = useState("");
+  const [taxRate, setTaxRate] = useState(() => { try { return localStorage.getItem(TAX_RATE_KEY) ?? ""; } catch { return ""; } });
   const [shippingIn, setShippingIn] = useState("");
-  const [ownerKind, setOwnerKind] = useState<"mine" | "giovanni" | "split">("mine");
+  const [ownerKind, setOwnerKind] = useState<OwnerKind>("mine");
   const [splitPct, setSplitPct] = useState(50);
   const [paidVia, setPaidVia] = useState<"USAA" | "Cash" | "Other">("USAA");
   const [saving, setSaving] = useState(false);
@@ -24,9 +27,15 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
 
   const q = parseInt(qty) || 0;
   const up = parseFloat(unitPrice) || 0;
-  const tx = parseFloat(tax) || 0;
+  const rate = parseFloat(taxRate) || 0;
+  const tx = useMemo(() => taxFromRate(q * up, rate), [q, up, rate]);
   const sh = parseFloat(shippingIn) || 0;
   const math = useMemo(() => purchaseMath(q, up, tx, sh), [q, up, tx, sh]);
+
+  function changeRate(v: string) {
+    setTaxRate(v);
+    try { localStorage.setItem(TAX_RATE_KEY, v); } catch { /* ignore */ }
+  }
   const suggestions = useMemo(() => {
     const t = name.trim().toLowerCase();
     if (t.length < 2) return [];
@@ -35,7 +44,7 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
 
   async function save() {
     setSaving(true);
-    const p = await addPurchase({ name: name.trim(), barcode: barcode || undefined, qty: q, unitPrice: up, tax: tx, shippingIn: sh, ownerKind, judahPct: splitPct, paidVia });
+    const p = await addPurchase({ name: name.trim(), barcode: barcode || undefined, qty: q, unitPrice: up, taxRate: rate, shippingIn: sh, ownerKind, judahPct: splitPct, paidVia });
     setSavedBasis(p.cost_basis_unit);
     setSaving(false);
     setStep(6);
@@ -80,13 +89,20 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
 
       {step === 2 && (
         <div>
-          <Field label="Tax you paid (total for everything)">
-            <MoneyInput value={tax} onChange={setTax} placeholder="0.00" />
+          <Field label="Tax rate on your receipt (%)">
+            <div className="relative">
+              <input className={inputCls} inputMode="decimal" value={taxRate} onChange={(e) => changeRate(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.000" />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</span>
+            </div>
           </Field>
+          {rate > 0 && (
+            <p className="text-slate-300 text-sm mb-4 -mt-2">That's <span className="font-bold text-white">{money(tx)}</span> tax on {money(q * up)} of product — check it against your receipt. The rate stays filled in for next time.</p>
+          )}
+          {rate <= 0 && <p className="text-slate-400 text-sm mb-4">No tax? Leave it at 0. The receipt shows one rate for everything — type that in and the app figures the dollars.</p>}
           <Field label="Shipping you paid to GET it (total)">
             <MoneyInput value={shippingIn} onChange={setShippingIn} placeholder="0.00" />
           </Field>
-          <p className="text-slate-400 text-sm mb-4">Bought it in a store? Shipping is $0. Tax is on your receipt.</p>
+          <p className="text-slate-400 text-sm mb-4">Bought it in a store? Shipping is $0.</p>
           <BigButton onClick={() => setStep(3)}>Next →</BigButton>
           <BackBtn onClick={() => setStep(1)} />
         </div>
@@ -99,12 +115,26 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
             <PickBtn active={ownerKind === "mine"} onClick={() => setOwnerKind("mine")} label="🟡 Mine — I paid for it" />
             <PickBtn active={ownerKind === "giovanni"} onClick={() => setOwnerKind("giovanni")} label="🔵 Giovanni's — he paid for it" />
             <PickBtn active={ownerKind === "split"} onClick={() => setOwnerKind("split")} label="🟣 We split it" />
+            <PickBtn active={ownerKind === "mom_payback"} onClick={() => setOwnerKind("mom_payback")} label="🟦 Mom paid — I pay her back" />
+            <PickBtn active={ownerKind === "mom_split"} onClick={() => setOwnerKind("mom_split")} label="🟪 Mom paid — we split the profit" />
           </div>
           {ownerKind === "split" && (
             <Field label={`My share: ${splitPct}%`}>
               <input type="range" min={5} max={95} step={5} value={splitPct} onChange={(e) => setSplitPct(parseInt(e.target.value))} className="w-full accent-yellow-400" />
               <div className="flex justify-between text-slate-400 text-sm"><span>Me {splitPct}%</span><span>Giovanni {100 - splitPct}%</span></div>
             </Field>
+          )}
+          {ownerKind === "mom_payback" && (
+            <p className="text-slate-400 text-sm mb-4">Mom fronted {money(math.totalCost)} for this. The app adds it to what you owe her — watch it on Check My Profit, and log it there when you pay her back. Whatever it sells for is yours.</p>
+          )}
+          {ownerKind === "mom_split" && (
+            <div>
+              <Field label={`My share of the PROFIT: ${splitPct}%`}>
+                <input type="range" min={5} max={95} step={5} value={splitPct} onChange={(e) => setSplitPct(parseInt(e.target.value))} className="w-full accent-yellow-400" />
+                <div className="flex justify-between text-slate-400 text-sm"><span>Me {splitPct}%</span><span>Mom {100 - splitPct}%</span></div>
+              </Field>
+              <p className="text-slate-400 text-sm mb-4">Consignment-style: when it sells, Mom gets her cost back first, then the profit splits {splitPct}/{100 - splitPct}. Her part goes on the owed-to-Mom tab on Check My Profit.</p>
+            </div>
           )}
           <BigButton onClick={() => setStep(4)}>Next →</BigButton>
           <BackBtn onClick={() => setStep(2)} />
@@ -129,7 +159,7 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
           <div className="rounded-2xl bg-slate-800 border border-slate-700 p-4 mb-4">
             <p className="text-white font-bold text-lg mb-1">{name}</p>
             <MathRow label={`${q} × ${money(up)}`} value={money(q * up)} />
-            <MathRow label="Tax" value={money(tx)} />
+            <MathRow label={rate > 0 ? `Tax (${rate}%)` : "Tax"} value={money(tx)} />
             <MathRow label="Shipping in" value={money(sh)} />
             <MathRow label="You paid in total" value={money(math.totalCost)} bold />
             <MathRow label="Cost per item (your cost basis)" value={money(math.costBasisUnit)} bold />

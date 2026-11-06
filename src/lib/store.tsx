@@ -1,8 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { SAMPLE_OWNER_ID } from "./config";
-import type { GiovanniPayment, Lot, Product, Purchase, Sale, Show } from "./types";
-import { purchaseMath, quickSaleMath, saleMath } from "./math";
+import type { GiovanniPayment, Lot, MomPayment, Product, Purchase, Sale, Show } from "./types";
+import { momSplitMath, purchaseMath, quickSaleMath, saleMath, taxFromRate } from "./math";
 
 // ---------- Local fallback seed (mirrors supabase/migrations/202611050003_seed_sample.sql) ----------
 const SEED_PRODUCTS: Product[] = [
@@ -20,14 +20,14 @@ const SEED_LOTS: Lot[] = [
   { id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc2", owner_id: SAMPLE_OWNER_ID, product_id: SEED_PRODUCTS[1].id, purchase_id: SEED_PURCHASES[1].id, qty_on_hand: 6, cost_basis_unit: 32, owner_kind: "split", judah_pct: 50 },
 ];
 
-interface LocalData { products: Product[]; purchases: Purchase[]; lots: Lot[]; sales: Sale[]; payments: GiovanniPayment[]; shows: Show[]; }
+interface LocalData { products: Product[]; purchases: Purchase[]; lots: Lot[]; sales: Sale[]; payments: GiovanniPayment[]; shows: Show[]; momPayments: MomPayment[]; }
 const LOCAL_KEY = "jtb-local-v1";
 function loadLocal(): LocalData {
   try {
     const raw = localStorage.getItem(LOCAL_KEY);
-    if (raw) { const d = JSON.parse(raw) as LocalData; if (!d.shows) d.shows = []; return d; }
+    if (raw) { const d = JSON.parse(raw) as LocalData; if (!d.shows) d.shows = []; if (!d.momPayments) d.momPayments = []; return d; }
   } catch { /* ignore */ }
-  return { products: SEED_PRODUCTS, purchases: SEED_PURCHASES, lots: SEED_LOTS, sales: [], payments: [], shows: [] };
+  return { products: SEED_PRODUCTS, purchases: SEED_PURCHASES, lots: SEED_LOTS, sales: [], payments: [], shows: [], momPayments: [] };
 }
 
 // ---------- Offline outbox: writes made with no signal queue here and push later ----------
@@ -58,6 +58,11 @@ interface Store {
   sales: Sale[];
   payments: GiovanniPayment[];
   shows: Show[];
+  momPayments: MomPayment[];
+  momOwed: number;
+  addMomPayment: (amount: number, paidOn: string, note: string) => Promise<void>;
+  deleteMomPayment: (id: string) => Promise<void>;
+  bulkRemoveLots: (lots: Lot[]) => Promise<number>;
   activeShow: Show | null;
   pendingCount: number;
   syncNow: () => Promise<void>;
@@ -67,7 +72,7 @@ interface Store {
   giovanniOwed: number;
   signIn: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
-  addPurchase: (input: { name: string; barcode?: string; qty: number; unitPrice: number; tax: number; shippingIn: number; ownerKind: "mine" | "giovanni" | "split"; judahPct: number; paidVia: "USAA" | "Cash" | "Other"; showId?: string }) => Promise<Purchase>;
+  addPurchase: (input: { name: string; barcode?: string; qty: number; unitPrice: number; taxRate: number; shippingIn: number; ownerKind: "mine" | "giovanni" | "split" | "mom_payback" | "mom_split"; judahPct: number; paidVia: "USAA" | "Cash" | "Other"; showId?: string }) => Promise<Purchase>;
   recordSales: (rows: { lot: Lot; qty: number; unitItemPrice: number; shippingCharged: number; shippingPaid: number; orderId: string | null; soldOn: string; orderGroupFirst?: boolean }[]) => Promise<Sale[]>;
   addGiovanniPayment: (amount: number, paidOn: string, note: string) => Promise<void>;
   deleteSale: (sale: Sale) => Promise<void>;
@@ -86,7 +91,7 @@ export function useStore(): Store {
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [data, setData] = useState<LocalData>({ products: [], purchases: [], lots: [], sales: [], payments: [], shows: [] });
+  const [data, setData] = useState<LocalData>({ products: [], purchases: [], lots: [], sales: [], payments: [], shows: [], momPayments: [] });
   const [outbox, setOutbox] = useState<OutboxOp[]>(() => loadOutbox());
   const outboxRef = useRef<OutboxOp[]>(outbox);
   const [ready, setReady] = useState(false);
@@ -100,15 +105,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const load = useCallback(async (owner: string) => {
     try {
-      const [p, pu, l, s, g, sh] = await Promise.all([
+      const [p, pu, l, s, g, sh, mp] = await Promise.all([
         supabase.from("products").select("*").eq("owner_id", owner),
         supabase.from("purchases").select("*").eq("owner_id", owner).order("purchased_on", { ascending: false }),
         supabase.from("inventory_lots").select("*").eq("owner_id", owner),
         supabase.from("sales").select("*").eq("owner_id", owner).order("sold_on", { ascending: false }),
         supabase.from("giovanni_payments").select("*").eq("owner_id", owner).order("paid_on", { ascending: false }),
         supabase.from("shows").select("*").eq("owner_id", owner).order("show_date", { ascending: false }),
+        supabase.from("mom_payments").select("*").eq("owner_id", owner).order("paid_on", { ascending: false }),
       ]);
-      if (p.error || pu.error || l.error || s.error || g.error || sh.error) throw new Error("supabase read failed");
+      if (p.error || pu.error || l.error || s.error || g.error || sh.error || mp.error) throw new Error("supabase read failed");
       const d: LocalData = {
         products: (p.data ?? []) as Product[],
         purchases: (pu.data ?? []) as Purchase[],
@@ -116,6 +122,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         sales: (s.data ?? []) as Sale[],
         payments: (g.data ?? []) as GiovanniPayment[],
         shows: (sh.data ?? []) as Show[],
+        momPayments: (mp.data ?? []) as MomPayment[],
       };
       setData(d); setRemote(true); remoteRef.current = true;
     } catch {
@@ -200,13 +207,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const addPurchase: Store["addPurchase"] = useCallback(async (input) => {
     const owner = ownerRef.current;
-    const { totalCost, costBasisUnit } = purchaseMath(input.qty, input.unitPrice, input.tax, input.shippingIn);
+    const tax = taxFromRate(input.qty * input.unitPrice, input.taxRate);
+    const { totalCost, costBasisUnit } = purchaseMath(input.qty, input.unitPrice, tax, input.shippingIn);
     let product = data.products.find((x) => x.name.trim().toLowerCase() === input.name.trim().toLowerCase());
     const purchase: Purchase = {
       id: uuid(), owner_id: owner, product_id: product?.id ?? null, product_name: input.name,
-      qty: input.qty, unit_price: input.unitPrice, tax: input.tax, shipping_in: input.shippingIn,
+      qty: input.qty, unit_price: input.unitPrice, tax, tax_rate: input.taxRate > 0 ? input.taxRate : null, shipping_in: input.shippingIn,
       total_cost: totalCost, cost_basis_unit: costBasisUnit, owner_kind: input.ownerKind,
-      judah_pct: input.ownerKind === "mine" ? 100 : input.ownerKind === "giovanni" ? 0 : input.judahPct,
+      judah_pct: input.ownerKind === "mine" || input.ownerKind === "mom_payback" ? 100 : input.ownerKind === "giovanni" ? 0 : input.judahPct,
       paid_via: input.paidVia, purchased_on: new Date().toISOString().slice(0, 10),
       show_id: input.showId ?? null,
     };
@@ -241,13 +249,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         m.profit = Math.round((m.profit + 0.3) * 100) / 100;
         m.judahShare = Math.round(m.netProceeds * (row.lot.judah_pct / 100) * 100) / 100;
       }
+      // Consignment lots: Mom gets cost + her profit share; Judah's share is only what he keeps,
+      // so the Giovanni balance (built on judah_share) stays honest too.
+      let momShare = 0;
+      if (row.lot.owner_kind === "mom_split") {
+        const mm = momSplitMath(m.netProceeds, m.costBasisTotal, row.lot.judah_pct);
+        momShare = mm.momShare;
+        m.judahShare = mm.judahKeep;
+      }
       const product = data.products.find((x) => x.id === row.lot.product_id);
       const sale: Sale = {
         id: uuid(), owner_id: owner, product_id: row.lot.product_id, lot_id: row.lot.id,
         product_name: product?.name ?? "Product", qty: row.qty, item_price: Math.round(row.unitItemPrice * row.qty * 100) / 100,
         shipping_charged: row.shippingCharged, shipping_paid: row.shippingPaid, commission: m.commission,
         transaction_fee: m.transactionFee, fees: m.fees, net_proceeds: m.netProceeds,
-        cost_basis_total: m.costBasisTotal, profit: m.profit, judah_share: m.judahShare,
+        cost_basis_total: m.costBasisTotal, profit: m.profit, judah_share: m.judahShare, mom_share: momShare,
         order_id: row.orderId, sold_on: row.soldOn,
       };
       out.push(sale);
@@ -318,6 +334,47 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     applyLocal((d) => ({ ...d, payments: d.payments.filter((p) => p.id !== id) }));
   }, [applyLocal]);
 
+  const addMomPayment: Store["addMomPayment"] = useCallback(async (amount, paidOn, note) => {
+    const payment: MomPayment = { id: uuid(), owner_id: ownerRef.current, amount, paid_on: paidOn, note: note || null };
+    if (remoteRef.current) {
+      try { const r = await supabase.from("mom_payments").insert(payment); if (r.error) throw r.error; }
+      catch { setNotice("Saved on this phone only — couldn't reach the cloud."); }
+    }
+    applyLocal((d) => ({ ...d, momPayments: [payment, ...d.momPayments] }));
+  }, [applyLocal]);
+
+  const deleteMomPayment: Store["deleteMomPayment"] = useCallback(async (id) => {
+    if (remoteRef.current) {
+      try { const d = await supabase.from("mom_payments").delete().eq("id", id); if (d.error) throw d.error; }
+      catch { setNotice("Couldn't delete that in the cloud — check your connection and try again."); return; }
+    }
+    applyLocal((d) => ({ ...d, momPayments: d.momPayments.filter((p) => p.id !== id) }));
+  }, [applyLocal]);
+
+  // Bulk edit (Jen, 2026-11-06): remove whole stock rows that were never sold from.
+  // Rows with sales keep their history — those come back as skipped so the UI can say why.
+  const bulkRemoveLots: Store["bulkRemoveLots"] = useCallback(async (targets) => {
+    const removable = targets.filter((l) => !data.sales.some((s) => s.lot_id === l.id));
+    if (remoteRef.current) {
+      for (const lot of removable) {
+        try {
+          const d1 = await supabase.from("inventory_lots").delete().eq("id", lot.id); if (d1.error) throw d1.error;
+          if (lot.purchase_id) { const d2 = await supabase.from("purchases").delete().eq("id", lot.purchase_id); if (d2.error) throw d2.error; }
+        } catch { setNotice("Some rows couldn't be removed from the cloud — check your connection and try again."); return 0; }
+      }
+    }
+    const ids = new Set(removable.map((l) => l.id));
+    const purchaseIds = new Set(removable.map((l) => l.purchase_id).filter(Boolean));
+    applyLocal((d) => {
+      const lots = d.lots.filter((l) => !ids.has(l.id));
+      const purchases = d.purchases.filter((p) => !purchaseIds.has(p.id));
+      // A product with no lots and no purchases left is just a name — drop it too.
+      const products = d.products.filter((p) => lots.some((l) => l.product_id === p.id) || purchases.some((pu) => pu.product_id === p.id) || d.sales.some((s) => s.product_id === p.id));
+      return { ...d, lots, purchases, products };
+    });
+    return removable.length;
+  }, [data.sales, applyLocal]);
+
   const adjustStock: Store["adjustStock"] = useCallback(async (lot, qtyRemoved, reason) => {
     const qty = Math.min(Math.max(0, qtyRemoved), lot.qty_on_hand);
     if (qty <= 0) return;
@@ -348,12 +405,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const recordQuickSale: Store["recordQuickSale"] = useCallback(async (input) => {
     if (input.qty > input.lot.qty_on_hand || input.qty <= 0) return null; // stock guard
     const m = quickSaleMath({ qty: input.qty, unitPrice: input.unitPrice, costBasisUnit: input.lot.cost_basis_unit, judahPct: input.lot.judah_pct });
+    let judahShare = m.judahShare;
+    let momShare = 0;
+    if (input.lot.owner_kind === "mom_split") {
+      const mm = momSplitMath(m.gross, m.costBasisTotal, input.lot.judah_pct);
+      momShare = mm.momShare;
+      judahShare = mm.judahKeep;
+    }
     const product = data.products.find((x) => x.id === input.lot.product_id);
     const sale: Sale = {
       id: uuid(), owner_id: ownerRef.current, product_id: input.lot.product_id, lot_id: input.lot.id,
       product_name: product?.name ?? "Product", qty: input.qty, item_price: m.gross,
       shipping_charged: 0, shipping_paid: 0, commission: 0, transaction_fee: 0, fees: 0,
-      net_proceeds: m.gross, cost_basis_total: m.costBasisTotal, profit: m.profit, judah_share: m.judahShare,
+      net_proceeds: m.gross, cost_basis_total: m.costBasisTotal, profit: m.profit, judah_share: judahShare, mom_share: momShare,
       order_id: null, sold_on: new Date().toISOString().slice(0, 10), show_id: input.showId, channel: input.channel,
     };
     await commit([
@@ -378,6 +442,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const activeShow = useMemo(() => data.shows.find((s) => s.status === "open") ?? null, [data.shows]);
 
+  // Owed to Mom = pay-back buys (her money out) + her shares from consignment
+  // sales − repayments Judah has logged. Mirrors the Giovanni ledger, reversed.
+  const momOwed = useMemo(() => {
+    const payback = data.purchases.filter((p) => p.owner_kind === "mom_payback").reduce((s, p) => s + Number(p.total_cost), 0);
+    const shares = data.sales.reduce((s, x) => s + Number(x.mom_share ?? 0), 0);
+    const repaid = data.momPayments.reduce((s, p) => s + Number(p.amount), 0);
+    return Math.round((payback + shares - repaid) * 100) / 100;
+  }, [data.purchases, data.sales, data.momPayments]);
+
   const giovanniOwed = useMemo(() => {
     // Giovanni's balance is a TCGplayer-only number: he collects those payouts.
     // Show sales are cash/Venmo in Judah's own hand, so they never enter it.
@@ -390,6 +463,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     ready, remote, notice, userEmail, ownerId,
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
     shows: data.shows, activeShow, pendingCount: outbox.length, syncNow, startShow, closeShow, recordQuickSale,
+    momPayments: data.momPayments, momOwed, addMomPayment, deleteMomPayment, bulkRemoveLots,
     giovanniOwed, signIn, signOut, addPurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
     reload: () => load(ownerRef.current),
   };

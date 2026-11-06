@@ -20,6 +20,12 @@ export function purchaseMath(qty: number, unitPrice: number, tax: number, shippi
   return { totalCost, costBasisUnit };
 }
 
+// Tax from the rate printed on the receipt (Jen, 2026-11-06): a receipt shows ONE
+// rate applied to everything bought, so the app takes the % and figures the $.
+export function taxFromRate(subtotal: number, ratePct: number): number {
+  return round2(subtotal * (ratePct / 100));
+}
+
 export interface SaleMath {
   base: number; // item + shipping charged
   commission: number;
@@ -74,6 +80,23 @@ export function quickSaleMath(args: { qty: number; unitPrice: number; costBasisU
 // Cash box at a show: starting float + cash taken in − cash spent on buys.
 export function showCashExpected(cashFloat: number, cashSalesTotal: number, cashBuysTotal: number): number {
   return round2(cashFloat + cashSalesTotal - cashBuysTotal);
+}
+
+export interface MomSplitMath {
+  momShare: number; // what this sale adds to the owed-to-Mom ledger
+  judahKeep: number; // what Judah keeps of the net proceeds
+}
+
+// Consignment split (Jen, 2026-11-06): Mom fronted the cost. On a sale she gets
+// her cost back first, then the PROFIT splits — judahProfitPct is Judah's share
+// of the profit. On a losing sale the proceeds all go to Mom (she took the risk
+// on her money) and Judah keeps nothing from that sale.
+export function momSplitMath(netProceeds: number, costBasisTotal: number, judahProfitPct: number): MomSplitMath {
+  const profit = round2(netProceeds - costBasisTotal);
+  const momShare = profit > 0
+    ? round2(costBasisTotal + profit * ((100 - judahProfitPct) / 100))
+    : round2(netProceeds);
+  return { momShare, judahKeep: round2(netProceeds - momShare) };
 }
 
 export function money(n: number): string {

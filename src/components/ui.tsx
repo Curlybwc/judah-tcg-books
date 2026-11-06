@@ -98,5 +98,7 @@ export function Chip({ children, tone = "slate" }: { children: React.ReactNode; 
 export function ownerLabel(kind: string, pct: number): string {
   if (kind === "mine") return "Mine";
   if (kind === "giovanni") return "Giovanni's";
+  if (kind === "mom_payback") return "Mom's — pay her back";
+  if (kind === "mom_split") return `Mom's — profit split, ${pct}% mine`;
   return `Split — ${pct}% mine`;
 }

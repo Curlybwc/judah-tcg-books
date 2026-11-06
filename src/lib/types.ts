@@ -1,4 +1,4 @@
-export type OwnerKind = "mine" | "giovanni" | "split";
+export type OwnerKind = "mine" | "giovanni" | "split" | "mom_payback" | "mom_split";
 export type PaidVia = "USAA" | "Cash" | "Other";
 
 export interface Product {
@@ -19,6 +19,7 @@ export interface Purchase {
   qty: number;
   unit_price: number;
   tax: number;
+  tax_rate?: number | null; // the % from the receipt that produced `tax`
   shipping_in: number;
   total_cost: number;
   cost_basis_unit: number;
@@ -59,6 +60,7 @@ export interface Sale {
   cost_basis_total: number;
   profit: number;
   judah_share: number;
+  mom_share?: number; // on mom_split sales: what this sale put into the owed-to-Mom ledger
   order_id: string | null;
   sold_on: string;
   show_id?: string | null;
@@ -88,3 +90,6 @@ export interface GiovanniPayment {
   note: string | null;
   created_at?: string;
 }
+
+// A repayment from Judah to Mom (Jen) against the owed-to-Mom ledger.
+export type MomPayment = GiovanniPayment;

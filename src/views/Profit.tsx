@@ -1,14 +1,17 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../lib/store";
 import { money } from "../lib/math";
-import { ScreenTitle } from "../components/ui";
+import { MoneyInput, ScreenTitle } from "../components/ui";
 
 function startOfWeek(): Date { const d = new Date(); const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); d.setHours(0, 0, 0, 0); return d; }
 function startOfMonth(): Date { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); }
 
 export default function Profit() {
-  const { sales, payments, giovanniOwed, lots, products, deleteSale, deleteGiovanniPayment } = useStore();
+  const { sales, payments, giovanniOwed, lots, products, deleteSale, deleteGiovanniPayment, momOwed, momPayments, addMomPayment, deleteMomPayment } = useStore();
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [confirmMomId, setConfirmMomId] = useState<string | null>(null);
+  const [momAmount, setMomAmount] = useState("");
+  const momRepaid = momPayments.reduce((s, p) => s + Number(p.amount), 0);
   const { week, month, all, weekCount } = useMemo(() => {
     const w = startOfWeek().getTime(), m = startOfMonth().getTime();
     let week = 0, month = 0, all = 0, weekCount = 0;
@@ -46,6 +49,34 @@ export default function Profit() {
         <p className="text-4xl font-black text-slate-900">{money(giovanniOwed)}</p>
         <p className="text-slate-700 text-sm">He has already paid you back {money(paidBack)} by Zelle.</p>
       </div>
+      <div className="rounded-3xl bg-slate-800 border border-sky-500/50 p-5 mb-3">
+        <p className="text-sky-300 font-semibold text-sm">You owe Mom</p>
+        <p className="text-4xl font-black text-white">{money(momOwed)}</p>
+        <p className="text-slate-400 text-sm">Product she paid for that you still owe her for, plus her share of consignment sales. You've paid her back {money(momRepaid)} so far.</p>
+        <div className="flex gap-2 mt-3">
+          <div className="flex-1"><MoneyInput value={momAmount} onChange={setMomAmount} placeholder="0.00" /></div>
+          <button
+            disabled={!(parseFloat(momAmount) > 0)}
+            onClick={() => { void addMomPayment(parseFloat(momAmount), new Date().toISOString().slice(0, 10), ""); setMomAmount(""); }}
+            className="rounded-2xl bg-sky-500 text-white px-4 font-bold disabled:opacity-40">
+            I paid Mom
+          </button>
+        </div>
+        {momPayments.length > 0 && (
+          <div className="grid gap-1.5 mt-3">
+            {momPayments.slice(0, 5).map((p) => (
+              <div key={p.id} className="flex justify-between items-center rounded-xl bg-slate-900 border border-slate-700 px-3 py-2">
+                <span className="text-slate-300 text-sm">Paid Mom {money(Number(p.amount))} · {p.paid_on}</span>
+                <button
+                  onClick={() => { if (confirmMomId === p.id) { void deleteMomPayment(p.id); setConfirmMomId(null); } else setConfirmMomId(p.id); }}
+                  className={`text-xs font-bold rounded-full px-2.5 py-1 ${confirmMomId === p.id ? "bg-rose-500 text-white" : "bg-slate-700 text-slate-300"}`}>
+                  {confirmMomId === p.id ? "Tap again to delete" : "Delete"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="rounded-3xl bg-slate-800 border-2 border-amber-500/70 overflow-hidden mb-5">
         <p className="bg-amber-500 text-slate-900 font-black text-center text-sm px-4 py-2">⚠️ SAMPLE PRICES — demo numbers, NOT real market prices yet</p>
         <div className="p-5">
@@ -63,7 +94,7 @@ export default function Profit() {
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-white font-semibold">{s.product_name} × {s.qty}</p>
-                <p className="text-slate-400 text-sm">{s.sold_on} · {s.channel === "show_cash" ? "🎪 show · cash" : s.channel === "show_venmo" ? "🎪 show · Venmo" : `your share ${money(Number(s.judah_share))}`}</p>
+                <p className="text-slate-400 text-sm">{s.sold_on} · {s.channel === "show_cash" ? "🎪 show · cash" : s.channel === "show_venmo" ? "🎪 show · Venmo" : `your share ${money(Number(s.judah_share))}`}{Number(s.mom_share ?? 0) > 0 ? ` · Mom's share ${money(Number(s.mom_share))}` : ""}</p>
               </div>
               <span className={`font-black ${Number(s.profit) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{money(Number(s.profit))}</span>
             </div>
