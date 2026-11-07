@@ -7,13 +7,14 @@ import ScanPrice from "./views/ScanPrice";
 import GiovanniPay from "./views/GiovanniPay";
 import Profit from "./views/Profit";
 import Books from "./views/Books";
+import QuickAdd from "./views/QuickAdd";
 import Inventory from "./views/Inventory";
 import BankStub from "./views/BankStub";
 import Account from "./views/Account";
 import ShowDashboard, { ShowClose } from "./views/ShowMode";
 import { ShowBuy, ShowSell } from "./views/ShowTrade";
 
-export type View = "home" | "buy" | "sell" | "scan" | "giovanni" | "profit" | "books" | "inventory" | "bank" | "account" | "show" | "showBuy" | "showSell" | "showClose";
+export type View = "home" | "buy" | "quickadd" | "sell" | "scan" | "giovanni" | "profit" | "books" | "inventory" | "bank" | "account" | "show" | "showBuy" | "showSell" | "showClose";
 
 function Shell() {
   const [view, setView] = useState<View>("home");
@@ -39,6 +40,7 @@ function Shell() {
           <>
             {view === "home" && <Home go={go} />}
             {view === "buy" && <BuyFlow go={go} />}
+            {view === "quickadd" && <QuickAdd go={go} />}
             {view === "sell" && <SellFlow go={go} />}
             {view === "scan" && <ScanPrice go={go} />}
             {view === "giovanni" && <GiovanniPay go={go} />}

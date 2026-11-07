@@ -39,6 +39,7 @@ export default function Home({ go }: { go: (v: View) => void }) {
       <div className="grid gap-3">
         <JobButton emoji="🎪" label="Show Mode" sub={activeShow ? `LIVE: ${activeShow.name} — tap to go back in` : "Show day? Buy and sell at the table here"} onClick={() => go("show")} />
         <JobButton emoji="🛒" label="I Bought Product" sub="Add something you just bought" onClick={() => go("buy")} />
+        <JobButton emoji="⚡" label="Quick Add" sub="Bought several things? Paste a list or say them out loud" onClick={() => go("quickadd")} />
         <JobButton emoji="💸" label="I Sold on TCGplayer" sub="Upload the orders file from TCGplayer" onClick={() => go("sell")} />
         <JobButton emoji="📷" label="Scan for Price" sub="What is this worth right now?" onClick={() => go("scan")} />
         <JobButton emoji="🤝" label="Giovanni Paid Me" sub="He sent you a Zelle? Log it here" onClick={() => go("giovanni")} />

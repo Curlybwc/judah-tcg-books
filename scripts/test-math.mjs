@@ -11,8 +11,10 @@ import { createRequire } from "node:module";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const tmp = mkdtempSync(join(tmpdir(), "jtb-math-"));
 cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
-execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
+cpSync(join(root, "src/lib/quickbuy.ts"), join(tmp, "quickbuy.ts"));
+execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "quickbuy.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
 const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+const { parseQuickBuyLine, allocateShipping } = createRequire(import.meta.url)(join(tmp, "out/quickbuy.js"));
 
 let fails = 0;
 function eq(label, actual, expected) {
@@ -55,6 +57,23 @@ eq("tax 10% of 79.99", taxFromRate(79.99, 10), 8.0);
 eq("tax 0% is 0", taxFromRate(123.45, 0), 0);
 // End to end: 4 × $55 at 8.5% + $12 shipping = $250.70 total.
 eq("buy with rate-tax total", purchaseMath(4, 55, taxFromRate(220, 8.5), 12).totalCost, 250.7);
+
+// Quick-buy parser: pipe, comma, loose, and voice-word shapes.
+const q1 = parseQuickBuyLine("Delta Reign ETB | 4 | 61.00");
+eq("QB pipe qty", q1.qty, 4); eq("QB pipe price", q1.unitPrice, 61);
+const q2 = parseQuickBuyLine("Prismatic Evolutions Booster Bundle, 6, 32");
+eq("QB comma qty", q2.qty, 6); eq("QB comma price", q2.unitPrice, 32);
+const q3 = parseQuickBuyLine("151 Elite Trainer Box x4 @ $55");
+eq("QB loose qty", q3.qty, 4); eq("QB loose price", q3.unitPrice, 55);
+const q4 = parseQuickBuyLine("two delta reign etb at sixty-one each");
+eq("QB voice qty", q4.qty, 2); eq("QB voice price", q4.unitPrice, 61);
+const q5 = parseQuickBuyLine("one charizard ex premium collection at one hundred twenty dollars");
+eq("QB voice qty 1", q5.qty, 1); eq("QB voice price with hundred", q5.unitPrice, 120);
+const q6 = parseQuickBuyLine("mystery thing with no numbers");
+if (!q6.error) { fails++; console.log("FAIL QB bad line should error"); } else console.log("PASS QB bad line errors");
+// Shipping allocation: parts must sum to the whole.
+const alloc = allocateShipping([{ qty: 4, unitPrice: 55 }, { qty: 6, unitPrice: 32 }], 12);
+eq("QB alloc sums to 12", Math.round(alloc.reduce((s, v) => s + v, 0) * 100) / 100, 12);
 
 // Schedule C summary (2026): canonical sales A + B, one show quick sale with a
 // $25 table fee, one $12.30 supplies expense, the $250.70 buy in-year.

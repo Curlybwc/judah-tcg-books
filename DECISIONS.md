@@ -143,6 +143,20 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     owes and what Judah owes Mom are both on Check My Profit (where their
     cards, repayment loggers, and full history already lived).
 
+26. **Quick Add + in-app barcode scanner (Jen, 2026-11-07).** Mined from
+    Jen's earlier Lovable app "Card Splitter" at her direction, after a full
+    code read of that project. Three of its features fit Judah; two were
+    deliberately NOT ported (its sale-by-sale transfer reconciliation —
+    complexity this app exists to avoid; its Collectr screenshot import —
+    built for singles collections, needs an AI backend). Ported: (a) Quick
+    Add screen — paste a list (pipe/comma/loose formats, lib/quickbuy.ts,
+    unit-tested) or dictate items (Web Speech API; the parser understands
+    number words incl. hundreds), review/edit all rows, then save the batch
+    with one owner, one payment method, one tax rate, and one shipping
+    charge allocated across lines by value. (b) Camera barcode scanner in
+    the Buy flow (BarcodeDetector — native in Chrome on Android, which is
+    Judah's only device; unsupported browsers get an honest type-it message).
+
 20. **In-app update button (Jen, 2026-11-07).** The PWA already ran
     registerType autoUpdate (new service workers activate in the background and
     land on the next reopen), but there was no way to pull a change down on

@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useStore } from "../lib/store";
 import { money, purchaseMath, taxFromRate } from "../lib/math";
 import { BigButton, Field, inputCls, MathRow, MoneyInput, ScreenTitle, StepRail } from "../components/ui";
+import BarcodeScanner from "../components/BarcodeScanner";
 import type { View } from "../App";
 import type { OwnerKind } from "../lib/types";
 
@@ -25,6 +26,7 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
   const [savedBasis, setSavedBasis] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [scanning, setScanning] = useState(false);
 
   const q = parseInt(qty) || 0;
   const up = parseFloat(unitPrice) || 0;
@@ -65,9 +67,11 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
           {suggestions.map((p) => (
             <button key={p.id} onClick={() => setName(p.name)} className="block w-full text-left rounded-xl bg-slate-800 border border-slate-700 px-4 py-3 mb-2 text-white">{p.name}</button>
           ))}
-          <Field label="Barcode (optional — type it or scan with your camera app)">
+          <Field label="Barcode (optional)">
             <input className={inputCls} value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Barcode numbers" inputMode="numeric" />
           </Field>
+          <button onClick={() => setScanning(true)} className="w-full rounded-2xl bg-slate-700 text-white py-3 font-semibold mb-3">📷 Scan the barcode with the camera</button>
+          {scanning && <BarcodeScanner onCode={(code) => { setBarcode(code); setScanning(false); }} onClose={() => setScanning(false)} />}
           <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) { setPhotoFile(f); if (!name) setName("Photo product (rename me)"); } }} />
           <button onClick={() => fileRef.current?.click()} className="w-full rounded-2xl bg-slate-700 text-white py-3.5 font-semibold mb-4">{photoFile ? "📷 Photo attached ✓ — tap to retake it" : "📷 Take a photo of it"}</button>
