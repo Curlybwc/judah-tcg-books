@@ -6,7 +6,7 @@ import { MoneyInput, ScreenTitle } from "../components/ui";
 function startOfWeek(): Date { const d = new Date(); const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); d.setHours(0, 0, 0, 0); return d; }
 function startOfMonth(): Date { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); }
 
-export default function Profit() {
+export default function Profit({ go }: { go: (v: import("../App").View) => void }) {
   const { sales, payments, giovanniOwed, lots, products, deleteSale, deleteGiovanniPayment, momOwed, momPayments, addMomPayment, deleteMomPayment } = useStore();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [confirmMomId, setConfirmMomId] = useState<string | null>(null);
@@ -44,6 +44,7 @@ export default function Profit() {
         <ProfitCard label="Profit this month" value={month} />
         <ProfitCard label="Profit all time" value={all} />
       </div>
+      <button onClick={() => go("books")} className="w-full rounded-2xl bg-slate-800 border border-slate-700 py-3.5 text-slate-100 font-bold mb-4">🧾 Books & Taxes — the Schedule C page</button>
       <div className="rounded-3xl bg-gradient-to-br from-yellow-400 to-amber-500 p-5 mb-3">
         <p className="text-slate-800 font-semibold text-sm">Giovanni owes you</p>
         <p className="text-4xl font-black text-slate-900">{money(giovanniOwed)}</p>

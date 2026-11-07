@@ -110,6 +110,39 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     prices never silently pretend. Terms note flagged to Jen: free tier is
     personal-use licensed; commercial tier is $49.99/mo if the shop outgrows it.
 
+25. **Product photos (Jen, 2026-11-07; migration 009).** Every for-sale
+    product can carry a picture, shown in What I Have For Sale and on Scan for
+    Price results. Two sources: (a) his own photo — the Buy flow's photo
+    button (which existed since the overnight build but only set a name —
+    now it actually attaches) and "Add/Change photo" on the stock card;
+    photos are shrunk to 800px JPEG on the phone, then uploaded to the public
+    Supabase Storage bucket 'product-photos' (on-phone mode keeps a small
+    data URL instead). (b) the online product image — "Find online photo"
+    pulls image_url from the TCG API match (needs the price key; without it
+    the button says so). products.image_url holds whichever was set last.
+
+24. **Books & Taxes page + expenses (Jen, 2026-11-07; migration 009).** A
+    ledger page under Check My Profit ("🧾 Books & Taxes") shaped like
+    Schedule C: pick a year → Line 1 gross receipts (item totals + shipping
+    charged), Line 4 COGS (cost of items actually sold), Line 7 gross profit,
+    expenses (Line 10 TCGplayer commissions & fees, postage/shipping paid,
+    show table fees, plus manual expenses by category), Line 28 total,
+    Line 31 net — with the cross-check printed on the page (net must equal
+    sales profit − table fees − manual expenses; math.taxSummary, unit-tested)
+    and a CSV download of the summary + full sales/expense detail for the
+    preparer. Manual expenses live in the new `expenses` table (supplies /
+    postage / advertising / other, each labeled with its Schedule C line) and
+    are logged from the Books page itself. This closes the audit's expenses
+    gap AND gives the business real books; supplies are period expenses here
+    and are NOT netted per-sale before Mom's 50/50 split (#19 stands — the
+    split runs on the sale's own profit).
+
+23. **Balances live only under Check My Profit (Jen, 2026-11-07).** Minutes
+    after #22, Jen simplified further: the Giovanni slim line came off Home
+    too. Home now carries exactly one number — the profit hero. What Giovanni
+    owes and what Judah owes Mom are both on Check My Profit (where their
+    cards, repayment loggers, and full history already lived).
+
 20. **In-app update button (Jen, 2026-11-07).** The PWA already ran
     registerType autoUpdate (new service workers activate in the background and
     land on the next reopen), but there was no way to pull a change down on

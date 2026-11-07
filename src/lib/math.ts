@@ -82,6 +82,55 @@ export function showCashExpected(cashFloat: number, cashSalesTotal: number, cash
   return round2(cashFloat + cashSalesTotal - cashBuysTotal);
 }
 
+export interface TaxSale { item_price: number; shipping_charged: number; shipping_paid: number; fees: number; cost_basis_total: number; profit: number; sold_on: string }
+export interface TaxExpense { amount: number; spent_on: string; category: string }
+export interface TaxSummary {
+  grossReceipts: number;   // Schedule C line 1: item totals + shipping charged
+  cogs: number;            // line 4: cost of the items actually sold
+  grossProfit: number;     // line 7
+  fees: number;            // line 10: commissions & fees (TCGplayer)
+  shippingPaid: number;    // postage/delivery — part of other expenses (line 27)
+  tableFees: number;       // show table fees — other expenses (line 27)
+  expensesByCategory: Record<string, number>; // manual expenses, by category
+  manualExpenses: number;
+  totalExpenses: number;   // line 28
+  netProfit: number;       // line 31
+  salesProfit: number;     // cross-check input: sum of sale profits for the year
+  purchasesInYear: number; // line 36: product bought during the year
+}
+
+// One tax year of books, shaped like Schedule C (Jen, 2026-11-07). Sales profit
+// already nets fees + shipping + item cost, so netProfit must always equal
+// salesProfit − tableFees − manualExpenses; the page shows that cross-check.
+export function taxSummary(
+  year: number,
+  sales: TaxSale[],
+  shows: { table_fee: number; show_date: string }[],
+  expenses: TaxExpense[],
+  purchases: { total_cost: number; purchased_on: string }[],
+): TaxSummary {
+  const inYear = (d: string) => d.startsWith(String(year));
+  const ys = sales.filter((s) => inYear(s.sold_on));
+  const grossReceipts = round2(ys.reduce((s, x) => s + Number(x.item_price) + Number(x.shipping_charged), 0));
+  const cogs = round2(ys.reduce((s, x) => s + Number(x.cost_basis_total), 0));
+  const fees = round2(ys.reduce((s, x) => s + Number(x.fees), 0));
+  const shippingPaid = round2(ys.reduce((s, x) => s + Number(x.shipping_paid), 0));
+  const salesProfit = round2(ys.reduce((s, x) => s + Number(x.profit), 0));
+  const tableFees = round2(shows.filter((s) => inYear(s.show_date)).reduce((s, x) => s + Number(x.table_fee), 0));
+  const expensesByCategory: Record<string, number> = {};
+  for (const e of expenses.filter((x) => inYear(x.spent_on))) {
+    expensesByCategory[e.category] = round2((expensesByCategory[e.category] ?? 0) + Number(e.amount));
+  }
+  const manualExpenses = round2(Object.values(expensesByCategory).reduce((s, v) => s + v, 0));
+  const grossProfit = round2(grossReceipts - cogs);
+  const totalExpenses = round2(fees + shippingPaid + tableFees + manualExpenses);
+  return {
+    grossReceipts, cogs, grossProfit, fees, shippingPaid, tableFees, expensesByCategory, manualExpenses,
+    totalExpenses, netProfit: round2(grossProfit - totalExpenses), salesProfit,
+    purchasesInYear: round2(purchases.filter((p) => inYear(p.purchased_on)).reduce((s, x) => s + Number(x.total_cost), 0)),
+  };
+}
+
 // Mom's cut of a sale (Jen's formula, settled 2026-11-07): when Mom paid for an
 // item, Judah owes her the item's full cost back (tracked on the buy side of the
 // ledger) PLUS 50% of the sale's actual profit — profit being what he got for it

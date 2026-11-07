@@ -12,7 +12,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const tmp = mkdtempSync(join(tmpdir(), "jtb-math-"));
 cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
 execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
-const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
 
 let fails = 0;
 function eq(label, actual, expected) {
@@ -55,6 +55,31 @@ eq("tax 10% of 79.99", taxFromRate(79.99, 10), 8.0);
 eq("tax 0% is 0", taxFromRate(123.45, 0), 0);
 // End to end: 4 × $55 at 8.5% + $12 shipping = $250.70 total.
 eq("buy with rate-tax total", purchaseMath(4, 55, taxFromRate(220, 8.5), 12).totalCost, 250.7);
+
+// Schedule C summary (2026): canonical sales A + B, one show quick sale with a
+// $25 table fee, one $12.30 supplies expense, the $250.70 buy in-year.
+const tx = taxSummary(2026,
+  [
+    { item_price: 79.99, shipping_charged: 4.99, shipping_paid: 5.5, fees: 11.56, cost_basis_total: 62.5, profit: 5.42, sold_on: "2026-03-01" },
+    { item_price: 99.98, shipping_charged: 4.99, shipping_paid: 5.5, fees: 14.2, cost_basis_total: 64, profit: 21.27, sold_on: "2026-03-02" },
+    { item_price: 90, shipping_charged: 0, shipping_paid: 0, fees: 0, cost_basis_total: 64, profit: 26, sold_on: "2026-04-01" },
+    { item_price: 500, shipping_charged: 0, shipping_paid: 0, fees: 0, cost_basis_total: 400, profit: 100, sold_on: "2025-12-31" },
+  ],
+  [{ table_fee: 25, show_date: "2026-04-01" }, { table_fee: 40, show_date: "2025-05-01" }],
+  [{ amount: 12.3, spent_on: "2026-02-01", category: "supplies" }],
+  [{ total_cost: 250.7, purchased_on: "2026-01-15" }],
+);
+eq("TX gross receipts", tx.grossReceipts, 279.95);
+eq("TX COGS", tx.cogs, 190.5);
+eq("TX gross profit", tx.grossProfit, 89.45);
+eq("TX fees", tx.fees, 25.76);
+eq("TX shipping paid", tx.shippingPaid, 11);
+eq("TX table fees", tx.tableFees, 25);
+eq("TX manual expenses", tx.manualExpenses, 12.3);
+eq("TX total expenses", tx.totalExpenses, 74.06);
+eq("TX net profit", tx.netProfit, 15.39);
+eq("TX cross-check: sales profit - table fees - manual = net", Math.round((tx.salesProfit - tx.tableFees - tx.manualExpenses) * 100) / 100, tx.netProfit);
+eq("TX purchases in year", tx.purchasesInYear, 250.7);
 
 // Mom's formula (Jen, 2026-11-07): cost back (buy side of the ledger) + 50% of
 // the sale's actual profit. Sale A's profit is 5.42 → her cut of the profit is 2.71.

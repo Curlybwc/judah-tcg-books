@@ -7,6 +7,8 @@ export interface PriceResult {
   price: number;
   provider: string; // shown in the UI — sample provider must say SAMPLE
   isSample: boolean;
+  imageUrl?: string; // real providers only: the online product image
+  matchedName?: string; // real providers only: which catalog product matched
 }
 
 export interface PriceProvider {
@@ -95,7 +97,7 @@ function normName(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-interface TcgApiItem { name?: string; market_price?: number | null }
+interface TcgApiItem { name?: string; market_price?: number | null; image_url?: string | null }
 
 class TcgApiPriceProvider implements PriceProvider {
   async lookup(name: string): Promise<PriceResult> {
@@ -120,7 +122,7 @@ class TcgApiPriceProvider implements PriceProvider {
         ?? items[0];
       const price = pick.market_price as number;
       writeCache(name, price);
-      return { price, provider: "TCG API — real market price", isSample: false };
+      return { price, provider: "TCG API — real market price", isSample: false, imageUrl: pick.image_url ?? undefined, matchedName: pick.name };
     } catch {
       const s = await SAMPLE.lookup(name);
       return { ...s, provider: "Price service didn't answer — showing SAMPLE", isSample: true };

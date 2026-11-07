@@ -8,6 +8,19 @@ export interface Product {
   barcode: string | null;
   product_type: "sealed" | "single";
   market_price: number | null;
+  image_url?: string | null; // his own photo (Supabase Storage) or the online product image
+  created_at?: string;
+}
+
+export type ExpenseCategory = "supplies" | "postage" | "advertising" | "other";
+
+export interface Expense {
+  id: string;
+  owner_id: string;
+  amount: number;
+  spent_on: string;
+  category: ExpenseCategory;
+  note: string;
   created_at?: string;
 }
 

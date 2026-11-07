@@ -10,7 +10,7 @@ const TAX_RATE_KEY = "jtb-tax-rate";
 const STEPS = ["What is it?", "How many & price", "Tax & shipping", "Whose is it?", "How did you pay?", "Check the math", "Done"];
 
 export default function BuyFlow({ go }: { go: (v: View) => void }) {
-  const { addPurchase, products } = useStore();
+  const { addPurchase, products, uploadProductPhoto } = useStore();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [barcode, setBarcode] = useState("");
@@ -24,6 +24,7 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
   const [saving, setSaving] = useState(false);
   const [savedBasis, setSavedBasis] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
 
   const q = parseInt(qty) || 0;
   const up = parseFloat(unitPrice) || 0;
@@ -45,6 +46,7 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
   async function save() {
     setSaving(true);
     const p = await addPurchase({ name: name.trim(), barcode: barcode || undefined, qty: q, unitPrice: up, taxRate: rate, shippingIn: sh, ownerKind, judahPct: splitPct, paidVia });
+    if (photoFile && p.product_id) await uploadProductPhoto(p.product_id, photoFile);
     setSavedBasis(p.cost_basis_unit);
     setSaving(false);
     setStep(6);
@@ -67,8 +69,8 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
             <input className={inputCls} value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Barcode numbers" inputMode="numeric" />
           </Field>
           <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
-            onChange={() => { if (!name) setName("Photo product (rename me)"); }} />
-          <button onClick={() => fileRef.current?.click()} className="w-full rounded-2xl bg-slate-700 text-white py-3.5 font-semibold mb-4">📷 Take a photo of it instead</button>
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) { setPhotoFile(f); if (!name) setName("Photo product (rename me)"); } }} />
+          <button onClick={() => fileRef.current?.click()} className="w-full rounded-2xl bg-slate-700 text-white py-3.5 font-semibold mb-4">{photoFile ? "📷 Photo attached ✓ — tap to retake it" : "📷 Take a photo of it"}</button>
           <BigButton disabled={name.trim().length < 2} onClick={() => setStep(1)}>That's it →</BigButton>
         </div>
       )}

@@ -6,17 +6,18 @@ import SellFlow from "./views/SellFlow";
 import ScanPrice from "./views/ScanPrice";
 import GiovanniPay from "./views/GiovanniPay";
 import Profit from "./views/Profit";
+import Books from "./views/Books";
 import Inventory from "./views/Inventory";
 import BankStub from "./views/BankStub";
 import Account from "./views/Account";
 import ShowDashboard, { ShowClose } from "./views/ShowMode";
 import { ShowBuy, ShowSell } from "./views/ShowTrade";
 
-export type View = "home" | "buy" | "sell" | "scan" | "giovanni" | "profit" | "inventory" | "bank" | "account" | "show" | "showBuy" | "showSell" | "showClose";
+export type View = "home" | "buy" | "sell" | "scan" | "giovanni" | "profit" | "books" | "inventory" | "bank" | "account" | "show" | "showBuy" | "showSell" | "showClose";
 
 function Shell() {
   const [view, setView] = useState<View>("home");
-  const { ready, notice } = useStore();
+  const { ready, notice, userEmail } = useStore();
   const go = (v: View) => { setView(v); window.scrollTo({ top: 0 }); };
 
   return (
@@ -27,7 +28,7 @@ function Shell() {
             <button onClick={() => go("home")} className="rounded-full bg-slate-800 border border-slate-700 text-white px-3.5 py-1.5 font-bold" aria-label="Back to start">← Home</button>
           )}
           <p className="text-white font-black text-lg">⚡ Judah TCG Books</p>
-          <span className="ml-auto rounded-full bg-amber-500 text-slate-900 text-[11px] font-black px-2 py-0.5">DEMO DATA</span>
+          {!userEmail && <span className="ml-auto rounded-full bg-amber-500 text-slate-900 text-[11px] font-black px-2 py-0.5">DEMO DATA</span>}
         </div>
       </header>
       <main className="max-w-md mx-auto px-4 py-5 pb-10">
@@ -41,7 +42,8 @@ function Shell() {
             {view === "sell" && <SellFlow go={go} />}
             {view === "scan" && <ScanPrice go={go} />}
             {view === "giovanni" && <GiovanniPay go={go} />}
-            {view === "profit" && <Profit />}
+            {view === "profit" && <Profit go={go} />}
+            {view === "books" && <Books />}
             {view === "inventory" && <Inventory go={go} />}
             {view === "bank" && <BankStub />}
             {view === "account" && <Account />}

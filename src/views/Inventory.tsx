@@ -2,10 +2,12 @@ import { useMemo, useState } from "react";
 import { useStore } from "../lib/store";
 import { money } from "../lib/math";
 import { Chip, ScreenTitle, ownerLabel } from "../components/ui";
+import { priceProvider } from "../lib/priceProvider";
+import { useRef } from "react";
 import type { View } from "../App";
 
 export default function Inventory({ go }: { go: (v: View) => void }) {
-  const { lots, products, sales, undoPurchaseForLot, adjustStock, bulkRemoveLots } = useStore();
+  const { lots, products, sales, undoPurchaseForLot, adjustStock, bulkRemoveLots, setProductImage, uploadProductPhoto } = useStore();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [adjustId, setAdjustId] = useState<string | null>(null);
   const [adjustQty, setAdjustQty] = useState(1);
@@ -15,6 +17,35 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [editMsg, setEditMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [photoMsg, setPhotoMsg] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const pendingPhotoProduct = useRef<string | null>(null);
+
+  function pickPhoto(productId: string) {
+    pendingPhotoProduct.current = productId;
+    fileRef.current?.click();
+  }
+
+  async function onPhotoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    const pid = pendingPhotoProduct.current;
+    if (!f || !pid) return;
+    setPhotoBusy(true);
+    const ok = await uploadProductPhoto(pid, f);
+    setPhotoBusy(false);
+    setPhotoMsg(ok ? "Photo saved ✓" : "That photo didn't save — try again.");
+  }
+
+  async function findOnlinePhoto(productId: string, name: string) {
+    setPhotoBusy(true);
+    setPhotoMsg(null);
+    const r = await priceProvider.lookup(name);
+    setPhotoBusy(false);
+    if (r.imageUrl) { await setProductImage(productId, r.imageUrl); setPhotoMsg("Online product photo added ✓"); }
+    else setPhotoMsg(r.isSample ? "No online photo yet — that needs the real price key (Account screen). Your own photo always works." : "No online photo found for that name — try your own photo.");
+  }
 
   function toggleSel(id: string) {
     setConfirmRemove(false);
@@ -42,12 +73,12 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     setSelected(new Set());
   }
   const groups = useMemo(() => {
-    const map = new Map<string, { name: string; market: number | null; lots: typeof lots }>();
+    const map = new Map<string, { name: string; market: number | null; productId: string | null; imageUrl: string | null; lots: typeof lots }>();
     for (const lot of lots) {
       if (lot.qty_on_hand <= 0) continue;
       const p = products.find((x) => x.id === lot.product_id);
       const name = p?.name ?? "Product";
-      if (!map.has(name)) map.set(name, { name, market: p?.market_price ?? null, lots: [] });
+      if (!map.has(name)) map.set(name, { name, market: p?.market_price ?? null, productId: p?.id ?? null, imageUrl: p?.image_url ?? null, lots: [] });
       map.get(name)!.lots.push(lot);
     }
     return [...map.values()];
@@ -113,9 +144,22 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
           const units = g.lots.reduce((a, l) => a + l.qty_on_hand, 0);
           return (
             <div key={g.name} className="rounded-3xl bg-slate-800 border border-slate-700 p-5">
-              <div className="flex justify-between items-start gap-3">
-                <p className="text-white font-bold text-lg leading-snug">{g.name}</p>
-                <span className="rounded-full bg-yellow-400 text-slate-900 font-black px-3 py-1 text-sm whitespace-nowrap">{units} on hand</span>
+              <div className="flex gap-3">
+                {g.imageUrl
+                  ? <img src={g.imageUrl} alt={g.name} className="w-16 h-16 rounded-2xl object-cover bg-slate-700 shrink-0" />
+                  : <div className="w-16 h-16 rounded-2xl bg-slate-700 flex items-center justify-center text-2xl shrink-0">📦</div>}
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start gap-3">
+                    <p className="text-white font-bold text-lg leading-snug">{g.name}</p>
+                    <span className="rounded-full bg-yellow-400 text-slate-900 font-black px-3 py-1 text-sm whitespace-nowrap">{units} on hand</span>
+                  </div>
+                  {g.productId && (
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      <button disabled={photoBusy} onClick={() => pickPhoto(g.productId!)} className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200 disabled:opacity-50">{g.imageUrl ? "📷 Change photo" : "📷 Add your photo"}</button>
+                      {!g.imageUrl && <button disabled={photoBusy} onClick={() => void findOnlinePhoto(g.productId!, g.name)} className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200 disabled:opacity-50">🌐 Find online photo</button>}
+                    </div>
+                  )}
+                </div>
               </div>
               {g.market !== null && <p className="text-slate-400 text-sm mt-1">Selling for about {money(g.market)} each <Chip tone="amber">SAMPLE price</Chip></p>}
               <div className="mt-2 grid gap-1.5">
@@ -170,6 +214,8 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
         })}
       </div>
       )}
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => void onPhotoFile(e)} />
+      {photoMsg && <p className="text-emerald-300 text-sm font-semibold mt-3">{photoMsg}</p>}
       <button onClick={() => go("buy")} className="w-full mt-5 rounded-2xl bg-yellow-400 text-slate-900 py-4 font-bold text-lg">🛒 I bought more product</button>
     </div>
   );

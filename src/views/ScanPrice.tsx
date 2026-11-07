@@ -50,8 +50,10 @@ export default function ScanPrice({ go }: { go: (v: View) => void }) {
           <div className="rounded-3xl bg-slate-800 border border-slate-700 p-6 text-center mb-4">
             <p className="text-slate-300 font-semibold">{name}</p>
             <p className="text-6xl font-black text-white mt-2">{money(result.price)}</p>
+            {result.imageUrl && <img src={result.imageUrl} alt={result.matchedName ?? name} className="mx-auto mt-3 w-40 h-40 rounded-2xl object-cover bg-slate-700" />}
+            {result.matchedName && !result.isSample && <p className="text-slate-400 text-sm mt-2">Matched: {result.matchedName}</p>}
             <p className="mt-3">{result.isSample ? <Chip tone="amber">SAMPLE PRICE — demo only, not a real market price</Chip> : <Chip tone="green">{result.provider}</Chip>}</p>
-            {result.isSample && <p className="text-slate-400 text-sm mt-2">Real prices turn on when the TCG price key is added (a quick daytime setup with Mom).</p>}
+            {result.isSample && <p className="text-slate-400 text-sm mt-2">Real prices turn on when the free TCG API key is pasted in — Account screen, "Real prices" section.</p>}
           </div>
           <div className="grid gap-3">
             <BigButton onClick={() => go("buy")}>🛒 I bought this</BigButton>
