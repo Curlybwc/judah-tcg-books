@@ -12,9 +12,11 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const tmp = mkdtempSync(join(tmpdir(), "jtb-math-"));
 cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
 cpSync(join(root, "src/lib/quickbuy.ts"), join(tmp, "quickbuy.ts"));
-execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "quickbuy.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
+cpSync(join(root, "src/lib/catalog.ts"), join(tmp, "catalog.ts"));
+execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "quickbuy.ts", "catalog.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
 const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
 const { parseQuickBuyLine, allocateShipping } = createRequire(import.meta.url)(join(tmp, "out/quickbuy.js"));
+const { UPC_CATALOG, normalizeBarcode, catalogLookup } = createRequire(import.meta.url)(join(tmp, "out/catalog.js"));
 
 let fails = 0;
 function eq(label, actual, expected) {
@@ -74,6 +76,15 @@ if (!q6.error) { fails++; console.log("FAIL QB bad line should error"); } else c
 // Shipping allocation: parts must sum to the whole.
 const alloc = allocateShipping([{ qty: 4, unitPrice: 55 }, { qty: 6, unitPrice: 32 }], 12);
 eq("QB alloc sums to 12", Math.round(alloc.reduce((s, v) => s + v, 0) * 100) / 100, 12);
+
+// Starter barcode library: size, shape, and two retailer-verified anchors.
+const catKeys = Object.keys(UPC_CATALOG);
+if (catKeys.length < 400) { fails++; console.log(`FAIL catalog size: expected 400+, got ${catKeys.length}`); } else console.log(`PASS catalog size: ${catKeys.length} entries`);
+if (!catKeys.every((k) => /^\d{12}$/.test(k))) { fails++; console.log("FAIL catalog keys must all be 12-digit"); } else console.log("PASS catalog keys all 12-digit");
+eq("CAT Prismatic bundle", catalogLookup("196214112544")?.name === "Prismatic Evolutions Booster Bundle" ? 1 : 0, 1);
+eq("CAT 151 ETB via EAN-13 form", catalogLookup("0820650853159")?.name === "151 Elite Trainer Box" ? 1 : 0, 1);
+eq("CAT normalize strips leading zeros", normalizeBarcode("00820650853159") === "820650853159" ? 1 : 0, 1);
+eq("CAT unknown barcode", catalogLookup("999999999999") === undefined ? 1 : 0, 1);
 
 // Schedule C summary (2026): canonical sales A + B, one show quick sale with a
 // $25 table fee, one $12.30 other expense, the $250.70 buy in-year.

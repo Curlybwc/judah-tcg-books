@@ -3,6 +3,7 @@ import { useStore } from "../lib/store";
 import { money, purchaseMath, taxFromRate } from "../lib/math";
 import { BigButton, Field, inputCls, MathRow, MoneyInput, ScreenTitle, StepRail } from "../components/ui";
 import BarcodeScanner from "../components/BarcodeScanner";
+import { catalogLookup, normalizeBarcode } from "../lib/catalog";
 import type { View } from "../App";
 import type { OwnerKind } from "../lib/types";
 
@@ -31,10 +32,13 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
   // Own-library barcode lookup (Jen, 2026-11-07): a barcode the app has seen
   // before names the product itself — no online library involved.
   const recognized = useMemo(() => {
-    const code = barcode.trim();
+    const code = normalizeBarcode(barcode);
     if (code.length < 6) return undefined;
-    return products.find((p) => p.barcode && p.barcode.trim() === code);
+    return products.find((p) => p.barcode && normalizeBarcode(p.barcode) === code);
   }, [barcode, products]);
+  // Starter-library match (seeded from TCGplayer's catalog): names a product
+  // he has never bought before. His own products above always win.
+  const catalogMatch = useMemo(() => (recognized ? undefined : catalogLookup(barcode)), [recognized, barcode]);
   const lastPaid = useMemo(() => {
     if (!recognized) return undefined;
     const ps = purchases.filter((p) => p.product_id === recognized.id);
@@ -42,11 +46,12 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
   }, [recognized, purchases]);
   const filledFor = useRef("");
   useEffect(() => {
-    if (recognized && filledFor.current !== barcode.trim()) {
-      filledFor.current = barcode.trim();
-      setName(recognized.name);
+    const fillName = recognized?.name ?? catalogMatch?.name;
+    if (fillName && filledFor.current !== normalizeBarcode(barcode)) {
+      filledFor.current = normalizeBarcode(barcode);
+      setName(fillName);
     }
-  }, [recognized, barcode]);
+  }, [recognized, catalogMatch, barcode]);
 
   const q = parseInt(qty) || 0;
   const up = parseFloat(unitPrice) || 0;
@@ -67,7 +72,7 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
 
   async function save() {
     setSaving(true);
-    const p = await addPurchase({ name: name.trim(), barcode: barcode || undefined, qty: q, unitPrice: up, taxRate: rate, shippingIn: sh, ownerKind, judahPct: splitPct, paidVia });
+    const p = await addPurchase({ name: name.trim(), barcode: barcode ? normalizeBarcode(barcode) : undefined, qty: q, unitPrice: up, taxRate: rate, shippingIn: sh, ownerKind, judahPct: splitPct, paidVia });
     if (photoFile && p.product_id) await uploadProductPhoto(p.product_id, photoFile);
     setSavedBasis(p.cost_basis_unit);
     setSaving(false);
@@ -96,6 +101,11 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
             <p className="rounded-2xl bg-emerald-950/60 border border-emerald-700 text-emerald-200 px-4 py-3 mb-3">
               ✓ You've bought this before — <span className="font-bold text-white">{recognized.name}</span>. Name filled in for you.
               {lastPaid && <span className="block text-sm mt-1">Last time: {lastPaid.qty} at {money(Number(lastPaid.unit_price))} each.</span>}
+            </p>
+          ) : catalogMatch ? (
+            <p className="rounded-2xl bg-sky-950/60 border border-sky-700 text-sky-200 px-4 py-3 mb-3">
+              📚 Starter library match — <span className="font-bold text-white">{catalogMatch.name}</span>. Name filled in for you; it's your first time buying this one.
+              {catalogMatch.a && <span className="block text-sm mt-1">This barcode covers assorted versions of this product — check the name matches your exact box, and fix it if it doesn't.</span>}
             </p>
           ) : barcode.trim().length >= 8 ? (
             <p className="rounded-2xl bg-slate-800 border border-slate-700 text-slate-300 px-4 py-3 mb-3">New barcode — it'll be remembered with this product when you save, so next time it fills itself in.</p>

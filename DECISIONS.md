@@ -263,3 +263,27 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     shows the last price he paid for it; an unmatched barcode shows "it'll be
     remembered when you save" — and it is, on the product, so the library
     grows with every first-time buy. No internet, no quota, no cost.
+
+29. **Starter barcode library, seeded once from TCGplayer's catalog (Jen,
+    2026-11-07).** Jen's correction to #28: an own-library that starts empty
+    helps nobody on day one — seed it. There is no downloadable CSV of
+    Pokémon UPCs to import (she offered to go find one; Maven built it
+    instead). Source: TCGplayer's own catalog as republished daily by the
+    community service TCGCSV (tcgcsv.com) — all 221 Pokémon groups pulled
+    2026-11-07, 959 raw UPC rows → 485 seeded after cleaning: code cards
+    excluded, GTINs normalized to the 12-digit UPC form, 55 barcodes dropped
+    where sources genuinely disagreed, and 114 assortment barcodes (one code
+    covering several art variants — mini tins, sticker collections) kept
+    under their shared product name and flagged so the app warns Judah to
+    check the exact name. Two unit UPCs TCGplayer lacks were added only with
+    two independent retailer listings agreeing (Prismatic Evolutions Booster
+    Bundle 196214112544; 151 Elite Trainer Box 820650853159); several others
+    (Prismatic ETB, Destined Rivals ETB) had conflicting retailer UPCs and
+    were deliberately left out — a wrong auto-fill is worse than none.
+    Coverage honesty: 391 unit-level + 92 case/display rows; TCGplayer
+    carries no UPC at all for many unit ETBs (151's among them), so first
+    scans of those still teach the library via #28. The seed ships INSIDE
+    the app (src/lib/catalog.ts, generated from data/pokemon-upc-seed.csv)
+    so it works offline and in on-phone mode; lookup order is own products →
+    starter library → new-barcode path. The two demo products' invented
+    barcodes were corrected to the verified UPCs above (cloud + local seed).

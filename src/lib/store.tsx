@@ -7,8 +7,8 @@ import { momProfitShare, purchaseMath, quickSaleMath, saleMath, taxFromRate } fr
 
 // ---------- Local fallback seed (mirrors supabase/migrations/202611050003_seed_sample.sql) ----------
 const SEED_PRODUCTS: Product[] = [
-  { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", owner_id: SAMPLE_OWNER_ID, name: "Scarlet & Violet 151 Elite Trainer Box", barcode: "196214123922", product_type: "sealed", market_price: 84.99 },
-  { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", owner_id: SAMPLE_OWNER_ID, name: "Prismatic Evolutions Booster Bundle", barcode: "196214123953", product_type: "sealed", market_price: 54.99 },
+  { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", owner_id: SAMPLE_OWNER_ID, name: "Scarlet & Violet 151 Elite Trainer Box", barcode: "820650853159", product_type: "sealed", market_price: 84.99 },
+  { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", owner_id: SAMPLE_OWNER_ID, name: "Prismatic Evolutions Booster Bundle", barcode: "196214112544", product_type: "sealed", market_price: 54.99 },
   { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3", owner_id: SAMPLE_OWNER_ID, name: "Charizard ex Premium Collection", barcode: "196214110076", product_type: "sealed", market_price: 119.99 },
   { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4", owner_id: SAMPLE_OWNER_ID, name: "Pikachu VMAX (single)", barcode: null, product_type: "single", market_price: 12.5 },
 ];
