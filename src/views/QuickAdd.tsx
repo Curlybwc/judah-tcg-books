@@ -15,7 +15,7 @@ const TAX_RATE_KEY = "jtb-tax-rate";
 interface SR {
   start: () => void;
   stop: () => void;
-  onresult: ((e: { results: { [i: number]: { [j: number]: { transcript: string }; isFinal: boolean } }; resultIndex: number }) => void) | null;
+  onresult: ((e: { results: { length: number; [i: number]: { isFinal: boolean; length: number; [j: number]: { transcript: string } } }; resultIndex: number }) => void) | null;
   onend: (() => void) | null;
   onerror: (() => void) | null;
   continuous: boolean;
