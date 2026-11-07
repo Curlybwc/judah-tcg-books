@@ -12,7 +12,7 @@ export interface Product {
   created_at?: string;
 }
 
-export type ExpenseCategory = "supplies" | "postage" | "advertising" | "other";
+export type ExpenseCategory = "postage" | "advertising" | "other";
 
 export interface Expense {
   id: string;

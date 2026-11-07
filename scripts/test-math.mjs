@@ -76,7 +76,7 @@ const alloc = allocateShipping([{ qty: 4, unitPrice: 55 }, { qty: 6, unitPrice: 
 eq("QB alloc sums to 12", Math.round(alloc.reduce((s, v) => s + v, 0) * 100) / 100, 12);
 
 // Schedule C summary (2026): canonical sales A + B, one show quick sale with a
-// $25 table fee, one $12.30 supplies expense, the $250.70 buy in-year.
+// $25 table fee, one $12.30 other expense, the $250.70 buy in-year.
 const tx = taxSummary(2026,
   [
     { item_price: 79.99, shipping_charged: 4.99, shipping_paid: 5.5, fees: 11.56, cost_basis_total: 62.5, profit: 5.42, sold_on: "2026-03-01" },
@@ -85,7 +85,7 @@ const tx = taxSummary(2026,
     { item_price: 500, shipping_charged: 0, shipping_paid: 0, fees: 0, cost_basis_total: 400, profit: 100, sold_on: "2025-12-31" },
   ],
   [{ table_fee: 25, show_date: "2026-04-01" }, { table_fee: 40, show_date: "2025-05-01" }],
-  [{ amount: 12.3, spent_on: "2026-02-01", category: "supplies" }],
+  [{ amount: 12.3, spent_on: "2026-02-01", category: "other" }],
   [{ total_cost: 250.7, purchased_on: "2026-01-15" }],
 );
 eq("TX gross receipts", tx.grossReceipts, 279.95);

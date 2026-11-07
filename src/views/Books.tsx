@@ -6,8 +6,11 @@ import type { ExpenseCategory } from "../lib/types";
 
 // Books & Taxes (Jen, 2026-11-07): one page shaped like Schedule C, so at tax
 // time she opens this, picks the year, and copies the numbers onto the form.
+// NOTE (Jen's ruling, 2026-11-07, DECISIONS #27): there is deliberately NO
+// supplies category here — shipping supplies (boxes, 4x6 envelopes) are
+// minimal and bought by Mom herself, so they are not Judah's expense and are
+// not tracked in his books.
 const CATEGORY_LABELS: Record<ExpenseCategory, { label: string; line: string }> = {
-  supplies: { label: "Supplies (sleeves, mailers, boxes)", line: "Line 18 — Supplies" },
   postage: { label: "Postage & shipping (extra)", line: "Line 27 — Other expenses" },
   advertising: { label: "Advertising", line: "Line 8 — Advertising" },
   other: { label: "Other expense", line: "Line 27 — Other expenses" },
@@ -28,7 +31,7 @@ export default function Books() {
   const [year, setYear] = useState(thisYear);
   const [amount, setAmount] = useState("");
   const [spentOn, setSpentOn] = useState(new Date().toISOString().slice(0, 10));
-  const [category, setCategory] = useState<ExpenseCategory>("supplies");
+  const [category, setCategory] = useState<ExpenseCategory>("postage");
   const [note, setNote] = useState("");
   const [confirmId, setConfirmId] = useState<string | null>(null);
 

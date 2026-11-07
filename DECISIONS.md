@@ -135,7 +135,9 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     are logged from the Books page itself. This closes the audit's expenses
     gap AND gives the business real books; supplies are period expenses here
     and are NOT netted per-sale before Mom's 50/50 split (#19 stands — the
-    split runs on the sale's own profit).
+    split runs on the sale's own profit). [Superseded in part by #27: the
+    supplies category came out of the logger — supplies are Mom-provided and
+    untracked in Judah's books.]
 
 23. **Balances live only under Check My Profit (Jen, 2026-11-07).** Minutes
     after #22, Jen simplified further: the Giovanni slim line came off Home
@@ -183,6 +185,8 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     of that) — #17's cut-to-keep was wrong and is reverted. Supplies (sleeves,
     mailers) are NOT netted before the split because the app tracks no expenses
     yet — flagged to Jen as the one gap in "actual profit" (2026-11-07).
+    [Closed by ruling #27 the same day: supplies are not netted because they
+    are Mom-provided and de minimis, not because they were untracked.]
 
 18. **Bulk edit stock (Jen, 2026-11-06).** What I Have For Sale gets a Bulk edit
     mode listing EVERY lot (zero-qty rows included — the normal view hides them,
@@ -236,3 +240,26 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     `PAGES_BASE` env var only for the Pages build; local dev keeps base `/`.
     If Jen later wants the repo private, move hosting to Netlify/Vercel free tier —
     the app itself doesn't change.
+
+27. **Supplies are Mom-provided, de minimis, and untracked (Jen, 2026-11-07).**
+    In Jen's words: "Supplies are really a small expense, and most of the boxes
+    are coming from my Amazon orders anyway. I'm the one who bought him a bunch
+    of 4x6 envelopes already." So: no supplies entry for Judah — shipping
+    supplies are mostly Mom's own purchases, they are NOT a Judah-paid cost,
+    and they are NOT netted out of his profit before the Mom split. The Mom
+    formula stands exactly as built in #19 (full purchase price back + 50% of
+    profit after fees and shipping paid). The Supplies category was removed
+    from the Books & Taxes expense logger the same day; postage, advertising,
+    and other expenses Judah actually pays remain loggable.
+
+28. **Own-library barcode lookup (Jen, 2026-11-07).** Jen asked the right
+    question — a scanner with no library identifies nothing — and ruled out
+    the online-library route after the evidence: UPCitemdb's free tier is
+    per-IP capped (Maven's live test of three real Pokémon UPCs returned
+    "rate limit exceeded" on all three) and its names are retail-messy;
+    TCG API (the price key) has no barcode lookup at all (full docs checked).
+    So the Buy flow now checks every typed/scanned barcode against Judah's
+    OWN products first: a match fills the product name in automatically and
+    shows the last price he paid for it; an unmatched barcode shows "it'll be
+    remembered when you save" — and it is, on the product, so the library
+    grows with every first-time buy. No internet, no quota, no cost.

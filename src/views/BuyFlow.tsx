@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../lib/store";
 import { money, purchaseMath, taxFromRate } from "../lib/math";
 import { BigButton, Field, inputCls, MathRow, MoneyInput, ScreenTitle, StepRail } from "../components/ui";
@@ -11,7 +11,7 @@ const TAX_RATE_KEY = "jtb-tax-rate";
 const STEPS = ["What is it?", "How many & price", "Tax & shipping", "Whose is it?", "How did you pay?", "Check the math", "Done"];
 
 export default function BuyFlow({ go }: { go: (v: View) => void }) {
-  const { addPurchase, products, uploadProductPhoto } = useStore();
+  const { addPurchase, products, purchases, uploadProductPhoto } = useStore();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [barcode, setBarcode] = useState("");
@@ -27,6 +27,26 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [scanning, setScanning] = useState(false);
+
+  // Own-library barcode lookup (Jen, 2026-11-07): a barcode the app has seen
+  // before names the product itself — no online library involved.
+  const recognized = useMemo(() => {
+    const code = barcode.trim();
+    if (code.length < 6) return undefined;
+    return products.find((p) => p.barcode && p.barcode.trim() === code);
+  }, [barcode, products]);
+  const lastPaid = useMemo(() => {
+    if (!recognized) return undefined;
+    const ps = purchases.filter((p) => p.product_id === recognized.id);
+    return ps.length ? ps.reduce((a, b) => (a.purchased_on >= b.purchased_on ? a : b)) : undefined;
+  }, [recognized, purchases]);
+  const filledFor = useRef("");
+  useEffect(() => {
+    if (recognized && filledFor.current !== barcode.trim()) {
+      filledFor.current = barcode.trim();
+      setName(recognized.name);
+    }
+  }, [recognized, barcode]);
 
   const q = parseInt(qty) || 0;
   const up = parseFloat(unitPrice) || 0;
@@ -72,6 +92,14 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
           </Field>
           <button onClick={() => setScanning(true)} className="w-full rounded-2xl bg-slate-700 text-white py-3 font-semibold mb-3">📷 Scan the barcode with the camera</button>
           {scanning && <BarcodeScanner onCode={(code) => { setBarcode(code); setScanning(false); }} onClose={() => setScanning(false)} />}
+          {recognized ? (
+            <p className="rounded-2xl bg-emerald-950/60 border border-emerald-700 text-emerald-200 px-4 py-3 mb-3">
+              ✓ You've bought this before — <span className="font-bold text-white">{recognized.name}</span>. Name filled in for you.
+              {lastPaid && <span className="block text-sm mt-1">Last time: {lastPaid.qty} at {money(Number(lastPaid.unit_price))} each.</span>}
+            </p>
+          ) : barcode.trim().length >= 8 ? (
+            <p className="rounded-2xl bg-slate-800 border border-slate-700 text-slate-300 px-4 py-3 mb-3">New barcode — it'll be remembered with this product when you save, so next time it fills itself in.</p>
+          ) : null}
           <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) { setPhotoFile(f); if (!name) setName("Photo product (rename me)"); } }} />
           <button onClick={() => fileRef.current?.click()} className="w-full rounded-2xl bg-slate-700 text-white py-3.5 font-semibold mb-4">{photoFile ? "📷 Photo attached ✓ — tap to retake it" : "📷 Take a photo of it"}</button>
