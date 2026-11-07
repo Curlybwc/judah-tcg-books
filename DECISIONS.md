@@ -86,6 +86,18 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     (e) Buy-at-show market helper offers 50/60/70/80% of the (SAMPLE) market
     price as one-tap offer prices — buylist discipline as a glance, not math.
 
+20. **In-app update button (Jen, 2026-11-07).** The PWA already ran
+    registerType autoUpdate (new service workers activate in the background and
+    land on the next reopen), but there was no way to pull a change down on
+    demand. Home now has a "🔄 Check for updates" button (src/lib/pwa.ts): it
+    forces a registration update check, waits for the new worker to take
+    control, and reloads into the new version, landing on a "✓ App updated"
+    note. If there's nothing new it says "You're up to date ✓". While the app
+    sits open it also pokes an update check every 30 minutes and whenever it
+    returns to the foreground — staging only, never a surprise reload in the
+    middle of an entry. Books are never touched by an app update: they live in
+    Supabase / on-phone storage, not in the app files.
+
 19. **Mom's formula, settled by Jen (2026-11-07) — supersedes the two-mode
     economics in #17.** There is ONE rule for anything Mom paid for: Judah owes
     her (a) the item's full cost, entered on the ledger at purchase, plus

@@ -1,10 +1,26 @@
+import { useEffect, useState } from "react";
 import { useStore } from "../lib/store";
 import { money } from "../lib/math";
+import { checkForUpdates, consumeJustUpdated, startBackgroundUpdateChecks } from "../lib/pwa";
 import { JobButton } from "../components/ui";
 import type { View } from "../App";
 
 export default function Home({ go }: { go: (v: View) => void }) {
   const { giovanniOwed, userEmail, remote, ready, activeShow, pendingCount, syncNow } = useStore();
+  const [checking, setChecking] = useState(false);
+  const [updateMsg, setUpdateMsg] = useState<string | null>(() => (consumeJustUpdated() ? "✓ App updated — this is the newest version." : null));
+
+  useEffect(() => { startBackgroundUpdateChecks(); }, []);
+
+  async function onCheckUpdates() {
+    setChecking(true);
+    setUpdateMsg(null);
+    const r = await checkForUpdates();
+    if (r === "current") setUpdateMsg("You're up to date ✓ — checked just now.");
+    else if (r === "unavailable") setUpdateMsg("Couldn't check right now — updates also land on their own when you reopen the app.");
+    // "reloading" never returns a message: the page is already reloading.
+    setChecking(false);
+  }
   return (
     <div>
       <div className="rounded-3xl bg-gradient-to-br from-yellow-400 to-amber-500 p-5 mb-5 shadow">
@@ -33,6 +49,10 @@ export default function Home({ go }: { go: (v: View) => void }) {
         <button onClick={() => go("bank")} className="flex-1 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-300 font-semibold">🏦 Bank (coming soon)</button>
         <button onClick={() => go("account")} className="flex-1 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-300 font-semibold">{userEmail ? "👤 Account" : "🔑 Sign In"}</button>
       </div>
+      <button onClick={() => void onCheckUpdates()} disabled={checking} className="w-full mt-3 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-300 font-semibold disabled:opacity-50">
+        {checking ? "🔄 Checking for updates…" : "🔄 Check for updates"}
+      </button>
+      {updateMsg && <p className="text-center text-sm text-emerald-300 font-semibold mt-2">{updateMsg}</p>}
       <p className="text-center text-xs text-slate-500 mt-4">
         {remote ? "Connected to your cloud books ✓" : "On-phone mode — books saved on this phone"}
       </p>
