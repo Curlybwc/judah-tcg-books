@@ -70,6 +70,7 @@ interface Store {
   closeShow: (show: Show, cashCounted: number | null) => Promise<void>;
   recordQuickSale: (input: { lot: Lot; qty: number; unitPrice: number; channel: "show_cash" | "show_venmo"; showId: string }) => Promise<Sale | null>;
   giovanniOwed: number;
+  totalProfit: number;
   signIn: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
   addPurchase: (input: { name: string; barcode?: string; qty: number; unitPrice: number; taxRate: number; shippingIn: number; ownerKind: "mine" | "giovanni" | "split" | "mom_payback" | "mom_split"; judahPct: number; paidVia: "USAA" | "Cash" | "Other"; showId?: string }) => Promise<Purchase>;
@@ -459,12 +460,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return Math.round((share - paid) * 100) / 100;
   }, [data.sales, data.payments]);
 
+  // All-time profit across every sale (TCGplayer + shows) — the Home hero
+  // number since Jen's 2026-11-07 ruling. Same sum as Profit's "all time".
+  const totalProfit = useMemo(() => Math.round(data.sales.reduce((s, x) => s + Number(x.profit), 0) * 100) / 100, [data.sales]);
+
   const value: Store = {
     ready, remote, notice, userEmail, ownerId,
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
     shows: data.shows, activeShow, pendingCount: outbox.length, syncNow, startShow, closeShow, recordQuickSale,
     momPayments: data.momPayments, momOwed, addMomPayment, deleteMomPayment, bulkRemoveLots,
-    giovanniOwed, signIn, signOut, addPurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
+    giovanniOwed, totalProfit, signIn, signOut, addPurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
     reload: () => load(ownerRef.current),
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

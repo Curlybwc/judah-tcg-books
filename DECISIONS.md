@@ -86,6 +86,30 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     (e) Buy-at-show market helper offers 50/60/70/80% of the (SAMPLE) market
     price as one-tap offer prices — buylist discipline as a glance, not math.
 
+22. **Home hero is Judah's profit, not Giovanni's balance (Jen, 2026-11-07).**
+    Jen questioned Giovanni front-and-center and ruled: the big card is now
+    "Your profit — all time" (store.totalProfit — the same sum as Profit's
+    all-time card). Giovanni is one slim line under it, amber when he actually
+    owes something, and tapping the line opens Giovanni Paid Me. The full
+    Giovanni card and ledger stay on Check My Profit, and the sale flow still
+    ends with his collected/owed numbers — the balance shouts at the two
+    moments it matters and sits quiet the rest of the time.
+
+21. **Real prices via TCG API (Jen, 2026-11-07).** Provider chosen on
+    evidence: TCGplayer grants no new keys; pokemontcg.io closed new
+    registrations (keys die 2027-03-01) and never priced sealed; JustTCG is
+    cards-only. TCG API (tcgapi.dev) prices TCGplayer's catalog INCLUDING
+    sealed product, free tier 100 lookups/day, no card, X-API-Key header on
+    api.tcgapi.dev/v1/search. The account is Jen's (their terms require 18+).
+    The key is entered in the app (Account → Real prices) and kept per device
+    in localStorage (jtb-tcgapi-key) — never in the repo; a Supabase
+    edge-function proxy is the upgrade path if browser calls ever get blocked
+    or the key needs to follow his login. Successful lookups cache 12h
+    (jtb-price-cache) against the quota. Any failure (no key, bad key, quota,
+    no match) falls back to the SAMPLE provider with the chip saying why —
+    prices never silently pretend. Terms note flagged to Jen: free tier is
+    personal-use licensed; commercial tier is $49.99/mo if the shop outgrows it.
+
 20. **In-app update button (Jen, 2026-11-07).** The PWA already ran
     registerType autoUpdate (new service workers activate in the background and
     land on the next reopen), but there was no way to pull a change down on

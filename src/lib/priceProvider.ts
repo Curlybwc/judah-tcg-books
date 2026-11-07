@@ -52,5 +52,81 @@ class SamplePriceProvider implements PriceProvider {
   }
 }
 
-// THE SEAM: replace with a real provider when the TCG API key exists.
-export const priceProvider: PriceProvider = new SamplePriceProvider();
+// --- Real provider: TCG API (tcgapi.dev), wired 2026-11-07 (DECISIONS #21) ---
+// Free tier: 100 lookups/day, no card. Prices TCGplayer's catalog INCLUDING
+// sealed product (ETBs, booster boxes), which is most of what Judah sells —
+// the reason it beat JustTCG (cards only) and pokemontcg.io (closed to new
+// keys, no sealed prices). The key is Jen's (their terms require 18+) and is
+// entered IN THE APP (Account screen), stored per device in localStorage —
+// never in this repo. Successful lookups cache for 12h to protect the quota.
+
+const KEY_LS = "jtb-tcgapi-key";
+const CACHE_LS = "jtb-price-cache";
+const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+const SAMPLE = new SamplePriceProvider();
+
+export function getPriceApiKey(): string {
+  try { return localStorage.getItem(KEY_LS) ?? ""; } catch { return ""; }
+}
+export function setPriceApiKey(k: string): void {
+  try {
+    if (k.trim()) localStorage.setItem(KEY_LS, k.trim());
+    else localStorage.removeItem(KEY_LS);
+  } catch { /* private mode etc. */ }
+}
+
+interface CacheEntry { price: number; ts: number }
+function readCache(name: string): number | null {
+  try {
+    const all = JSON.parse(localStorage.getItem(CACHE_LS) ?? "{}") as Record<string, CacheEntry>;
+    const e = all[name.trim().toLowerCase()];
+    return e && Date.now() - e.ts < CACHE_TTL_MS ? e.price : null;
+  } catch { return null; }
+}
+function writeCache(name: string, price: number): void {
+  try {
+    const all = JSON.parse(localStorage.getItem(CACHE_LS) ?? "{}") as Record<string, CacheEntry>;
+    all[name.trim().toLowerCase()] = { price, ts: Date.now() };
+    localStorage.setItem(CACHE_LS, JSON.stringify(all));
+  } catch { /* ignore */ }
+}
+
+function normName(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+interface TcgApiItem { name?: string; market_price?: number | null }
+
+class TcgApiPriceProvider implements PriceProvider {
+  async lookup(name: string): Promise<PriceResult> {
+    const key = getPriceApiKey();
+    if (!key) return SAMPLE.lookup(name);
+    const cached = readCache(name);
+    if (cached !== null) return { price: cached, provider: "TCG API — real market price", isSample: false };
+    try {
+      const res = await fetch(`https://api.tcgapi.dev/v1/search?q=${encodeURIComponent(name)}&game=pokemon&per_page=10`, {
+        headers: { "X-API-Key": key },
+      });
+      if (!res.ok) throw new Error(`http ${res.status}`);
+      const json = (await res.json()) as { data?: TcgApiItem[] };
+      const items = (json.data ?? []).filter((d) => typeof d.market_price === "number" && d.market_price > 0);
+      if (!items.length) {
+        const s = await SAMPLE.lookup(name);
+        return { ...s, provider: "No real price found for that name — showing SAMPLE", isSample: true };
+      }
+      const q = normName(name);
+      const pick = items.find((d) => normName(d.name ?? "") === q)
+        ?? items.find((d) => normName(d.name ?? "").includes(q) || q.includes(normName(d.name ?? "")))
+        ?? items[0];
+      const price = pick.market_price as number;
+      writeCache(name, price);
+      return { price, provider: "TCG API — real market price", isSample: false };
+    } catch {
+      const s = await SAMPLE.lookup(name);
+      return { ...s, provider: "Price service didn't answer — showing SAMPLE", isSample: true };
+    }
+  }
+}
+
+// THE SEAM: real provider when a key is set on this device, SAMPLE otherwise.
+export const priceProvider: PriceProvider = new TcgApiPriceProvider();

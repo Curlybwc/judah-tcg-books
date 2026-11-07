@@ -6,7 +6,7 @@ import { JobButton } from "../components/ui";
 import type { View } from "../App";
 
 export default function Home({ go }: { go: (v: View) => void }) {
-  const { giovanniOwed, userEmail, remote, ready, activeShow, pendingCount, syncNow } = useStore();
+  const { giovanniOwed, totalProfit, userEmail, remote, ready, activeShow, pendingCount, syncNow } = useStore();
   const [checking, setChecking] = useState(false);
   const [updateMsg, setUpdateMsg] = useState<string | null>(() => (consumeJustUpdated() ? "✓ App updated — this is the newest version." : null));
 
@@ -23,11 +23,15 @@ export default function Home({ go }: { go: (v: View) => void }) {
   }
   return (
     <div>
-      <div className="rounded-3xl bg-gradient-to-br from-yellow-400 to-amber-500 p-5 mb-5 shadow">
-        <p className="text-slate-800 font-semibold text-sm">Giovanni owes you</p>
-        <p className="text-5xl font-black text-slate-900 mt-1">{ready ? money(giovanniOwed) : "…"}</p>
-        <p className="text-slate-700 text-sm mt-1">He collects the TCGplayer payouts. This is your share he still needs to Zelle you.</p>
+      <div className="rounded-3xl bg-gradient-to-br from-yellow-400 to-amber-500 p-5 mb-3 shadow">
+        <p className="text-slate-800 font-semibold text-sm">Your profit — all time</p>
+        <p className="text-5xl font-black text-slate-900 mt-1">{ready ? money(totalProfit) : "…"}</p>
+        <p className="text-slate-700 text-sm mt-1">Everything you've made after fees and costs. Week and month are on Check My Profit.</p>
       </div>
+      <button onClick={() => go("giovanni")} className="w-full flex items-center justify-between rounded-2xl bg-slate-800 border border-slate-700 px-4 py-2.5 mb-5">
+        <span className="text-slate-300 font-semibold text-sm">🤝 Giovanni owes you</span>
+        <span className={`font-black ${giovanniOwed > 0 ? "text-amber-300" : "text-slate-300"}`}>{ready ? money(giovanniOwed) : "…"}</span>
+      </button>
 
       {pendingCount > 0 && (
         <button onClick={() => void syncNow()} className="w-full mb-4 rounded-2xl bg-sky-600 text-white py-3.5 font-bold">
