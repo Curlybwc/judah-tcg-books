@@ -52,7 +52,7 @@ export default function Profit() {
       <div className="rounded-3xl bg-slate-800 border border-sky-500/50 p-5 mb-3">
         <p className="text-sky-300 font-semibold text-sm">You owe Mom</p>
         <p className="text-4xl font-black text-white">{money(momOwed)}</p>
-        <p className="text-slate-400 text-sm">Product she paid for that you still owe her for, plus her share of consignment sales. You've paid her back {money(momRepaid)} so far.</p>
+        <p className="text-slate-400 text-sm">The full cost of everything she paid for, plus her 50% of the profit when those things sell (profit = what you got for it, after fees and shipping, minus its cost). You've paid her back {money(momRepaid)} so far.</p>
         <div className="flex gap-2 mt-3">
           <div className="flex-1"><MoneyInput value={momAmount} onChange={setMomAmount} placeholder="0.00" /></div>
           <button
@@ -94,7 +94,7 @@ export default function Profit() {
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-white font-semibold">{s.product_name} × {s.qty}</p>
-                <p className="text-slate-400 text-sm">{s.sold_on} · {s.channel === "show_cash" ? "🎪 show · cash" : s.channel === "show_venmo" ? "🎪 show · Venmo" : `your share ${money(Number(s.judah_share))}`}{Number(s.mom_share ?? 0) > 0 ? ` · Mom's share ${money(Number(s.mom_share))}` : ""}</p>
+                <p className="text-slate-400 text-sm">{s.sold_on} · {s.channel === "show_cash" ? "🎪 show · cash" : s.channel === "show_venmo" ? "🎪 show · Venmo" : `your share ${money(Number(s.judah_share))}`}{Number(s.mom_share ?? 0) > 0 ? ` · Mom's profit cut ${money(Number(s.mom_share))}` : ""}</p>
               </div>
               <span className={`font-black ${Number(s.profit) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{money(Number(s.profit))}</span>
             </div>

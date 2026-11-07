@@ -115,8 +115,7 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
             <PickBtn active={ownerKind === "mine"} onClick={() => setOwnerKind("mine")} label="🟡 Mine — I paid for it" />
             <PickBtn active={ownerKind === "giovanni"} onClick={() => setOwnerKind("giovanni")} label="🔵 Giovanni's — he paid for it" />
             <PickBtn active={ownerKind === "split"} onClick={() => setOwnerKind("split")} label="🟣 We split it" />
-            <PickBtn active={ownerKind === "mom_payback"} onClick={() => setOwnerKind("mom_payback")} label="🟦 Mom paid — I pay her back" />
-            <PickBtn active={ownerKind === "mom_split"} onClick={() => setOwnerKind("mom_split")} label="🟪 Mom paid — we split the profit" />
+            <PickBtn active={ownerKind === "mom_payback"} onClick={() => setOwnerKind("mom_payback")} label="🟦 Mom paid — I owe her the cost + half the profit" />
           </div>
           {ownerKind === "split" && (
             <Field label={`My share: ${splitPct}%`}>
@@ -125,16 +124,7 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
             </Field>
           )}
           {ownerKind === "mom_payback" && (
-            <p className="text-slate-400 text-sm mb-4">Mom fronted {money(math.totalCost)} for this. The app adds it to what you owe her — watch it on Check My Profit, and log it there when you pay her back. Whatever it sells for is yours.</p>
-          )}
-          {ownerKind === "mom_split" && (
-            <div>
-              <Field label={`My share of the PROFIT: ${splitPct}%`}>
-                <input type="range" min={5} max={95} step={5} value={splitPct} onChange={(e) => setSplitPct(parseInt(e.target.value))} className="w-full accent-yellow-400" />
-                <div className="flex justify-between text-slate-400 text-sm"><span>Me {splitPct}%</span><span>Mom {100 - splitPct}%</span></div>
-              </Field>
-              <p className="text-slate-400 text-sm mb-4">Consignment-style: when it sells, Mom gets her cost back first, then the profit splits {splitPct}/{100 - splitPct}. Her part goes on the owed-to-Mom tab on Check My Profit.</p>
-            </div>
+            <p className="text-slate-400 text-sm mb-4">Mom fronted {money(math.totalCost)} for this — that goes on your owed-to-Mom tab right away. When it sells, the app figures the actual profit (what you got for it, after fees and shipping, minus this cost) and adds half of it to what you owe her. You keep the other half. Watch it and log repayments on Check My Profit.</p>
           )}
           <BigButton onClick={() => setStep(4)}>Next →</BigButton>
           <BackBtn onClick={() => setStep(2)} />

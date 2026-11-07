@@ -30,7 +30,7 @@ npm install
 npm run dev      # local dev server
 npm run build    # production build (tsc + vite, PWA service worker + manifest)
 npm run preview  # serve the production build
-npm test         # money-math test (39 assertions against the real math module)
+npm test         # money-math test (37 assertions against the real math module)
 ```
 
 Safety nets built in: re-importing the same TCGplayer file skips rows already in

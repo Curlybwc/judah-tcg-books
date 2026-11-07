@@ -12,7 +12,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const tmp = mkdtempSync(join(tmpdir(), "jtb-math-"));
 cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
 execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
-const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momSplitMath } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
 
 let fails = 0;
 function eq(label, actual, expected) {
@@ -56,16 +56,12 @@ eq("tax 0% is 0", taxFromRate(123.45, 0), 0);
 // End to end: 4 × $55 at 8.5% + $12 shipping = $250.70 total.
 eq("buy with rate-tax total", purchaseMath(4, 55, taxFromRate(220, 8.5), 12).totalCost, 250.7);
 
-// Mom consignment split: sale A numbers (net 67.92, cost 62.50), profit split 50/50.
-// Mom gets her 62.50 back + half the 5.42 profit = 65.21; Judah keeps 2.71.
-const ms = momSplitMath(67.92, 62.5, 50);
-eq("MS momShare", ms.momShare, 65.21); eq("MS judahKeep", ms.judahKeep, 2.71);
-// Losing sale: net 50 against 62.50 cost — all proceeds to Mom, Judah keeps 0.
-const ml = momSplitMath(50, 62.5, 50);
-eq("ML momShare", ml.momShare, 50); eq("ML judahKeep", ml.judahKeep, 0);
-// Judah takes 100% of profit: Mom gets exactly her cost back.
-const mf = momSplitMath(67.92, 62.5, 100);
-eq("MF momShare", mf.momShare, 62.5); eq("MF judahKeep", mf.judahKeep, 5.42);
+// Mom's formula (Jen, 2026-11-07): cost back (buy side of the ledger) + 50% of
+// the sale's actual profit. Sale A's profit is 5.42 → her cut of the profit is 2.71.
+eq("Mom half of 5.42 profit", momProfitShare(5.42), 2.71);
+eq("Mom half of 21.27 profit", momProfitShare(21.27), 10.64); // halving is exact in binary float, so 10.635 rounds up under the app's round2 rule
+eq("Mom share of no profit", momProfitShare(0), 0);
+eq("Mom shares a loss 50/50", momProfitShare(-10), -5);
 
 console.log(fails === 0 ? "ALL MATH TESTS PASSED" : `${fails} FAILURES`);
 process.exit(fails ? 1 : 0);

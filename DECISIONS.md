@@ -86,6 +86,21 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     (e) Buy-at-show market helper offers 50/60/70/80% of the (SAMPLE) market
     price as one-tap offer prices — buylist discipline as a glance, not math.
 
+19. **Mom's formula, settled by Jen (2026-11-07) — supersedes the two-mode
+    economics in #17.** There is ONE rule for anything Mom paid for: Judah owes
+    her (a) the item's full cost, entered on the ledger at purchase, plus
+    (b) 50% of the sale's ACTUAL profit when it sells — profit in the app's
+    existing sense: what he got for it after TCGplayer fees and shipping paid,
+    minus the item's cost. `momProfitShare(profit) = round2(profit × 0.5)`,
+    signed, so a losing sale shares the loss 50/50 too. The UI now offers a
+    single "Mom paid" option (stored as mom_payback); mom_split rows, if any
+    ever exist, are treated identically by the store. Two ledger separations
+    matter: judah_share on Mom-paid sales stays the FULL net proceeds (Giovanni
+    collected all of it and owes it all to Judah; the Mom ledger settles out
+    of that) — #17's cut-to-keep was wrong and is reverted. Supplies (sleeves,
+    mailers) are NOT netted before the split because the app tracks no expenses
+    yet — flagged to Jen as the one gap in "actual profit" (2026-11-07).
+
 18. **Bulk edit stock (Jen, 2026-11-06).** What I Have For Sale gets a Bulk edit
     mode listing EVERY lot (zero-qty rows included — the normal view hides them,
     which is how demo leftovers became invisible-but-present). Select many →
@@ -97,7 +112,9 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     edits go DOWN only in v1 (zeroing + removal cover the "I don't have this"
     case Jen raised); count-up corrections have no path yet.
 
-17. **Mom funding options (Jen, 2026-11-06; migration 008).** Two owner kinds
+17. **Mom funding options (Jen, 2026-11-06; migration 008).** [Economics
+    superseded by #19 the next day — the tables/kinds from this entry stand;
+    the split rule and judah_share treatment do not.] Two owner kinds
     join mine/giovanni/split: `mom_payback` — Mom fronted the cost; the full
     total_cost enters the owed-to-Mom ledger until repaid; sale proceeds are
     Judah's. `mom_split` — consignment: on a sale, `momSplitMath` gives Mom her

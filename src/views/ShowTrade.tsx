@@ -93,14 +93,14 @@ export function ShowBuy({ go }: { go: (v: View) => void }) {
         <MoneyInput value={unitPrice} onChange={setUnitPrice} />
       </Field>
       <div className="flex flex-wrap gap-2 mb-3">
-        {(["mine", "giovanni", "split", "mom_payback", "mom_split"] as const).map((k) => (
+        {(["mine", "giovanni", "split", "mom_payback"] as const).map((k) => (
           <button key={k} onClick={() => setOwnerKind(k)} className={`rounded-xl px-3 py-2.5 font-bold text-sm ${ownerKind === k ? "bg-yellow-400 text-slate-900" : "bg-slate-800 text-slate-200 border border-slate-700"}`}>
-            {k === "mine" ? "Mine" : k === "giovanni" ? "Giovanni's" : k === "split" ? "Split" : k === "mom_payback" ? "Mom — pay back" : "Mom — split profit"}
+            {k === "mine" ? "Mine" : k === "giovanni" ? "Giovanni's" : k === "split" ? "Split" : "Mom paid"}
           </button>
         ))}
       </div>
-      {(ownerKind === "split" || ownerKind === "mom_split") && (
-        <Field label={ownerKind === "mom_split" ? `My share of the profit: ${splitPct}%` : `My share: ${splitPct}%`}>
+      {ownerKind === "split" && (
+        <Field label={`My share: ${splitPct}%`}>
           <input type="range" min={5} max={95} step={5} value={splitPct} onChange={(e) => setSplitPct(parseInt(e.target.value))} className="w-full accent-yellow-400" />
         </Field>
       )}
@@ -141,7 +141,8 @@ export function ShowSell({ go }: { go: (v: View) => void }) {
         <p className="text-6xl mb-3">💵</p>
         <p className="text-white text-xl font-bold">Sold for {money(sold.gross)}!</p>
         <p className="text-slate-300 mt-2">Profit on that sale: <span className={`font-bold ${sold.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{money(sold.profit)}</span></p>
-        {sold.momShare > 0 && <p className="text-slate-300 mt-1">Mom's share of that: <span className="font-bold text-white">{money(sold.momShare)}</span> — it's on the owed-to-Mom tab.</p>}
+        {sold.momShare > 0 && <p className="text-slate-300 mt-1">Mom's cut of the profit: <span className="font-bold text-white">{money(sold.momShare)}</span> — added to the owed-to-Mom tab.</p>}
+        {sold.momShare < 0 && <p className="text-slate-300 mt-1">That one lost money — the loss splits too, so Mom's tab went down by <span className="font-bold text-white">{money(Math.abs(sold.momShare))}</span>.</p>}
         <div className="grid gap-3 mt-6">
           <BigButton onClick={() => { setSold(null); setLotId(""); setPrice(""); setQty(1); }}>Sell another</BigButton>
           <BigButton color="slate" onClick={() => go("show")}>Back to the show</BigButton>

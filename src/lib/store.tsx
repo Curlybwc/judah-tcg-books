@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { supabase } from "./supabase";
 import { SAMPLE_OWNER_ID } from "./config";
 import type { GiovanniPayment, Lot, MomPayment, Product, Purchase, Sale, Show } from "./types";
-import { momSplitMath, purchaseMath, quickSaleMath, saleMath, taxFromRate } from "./math";
+import { momProfitShare, purchaseMath, quickSaleMath, saleMath, taxFromRate } from "./math";
 
 // ---------- Local fallback seed (mirrors supabase/migrations/202611050003_seed_sample.sql) ----------
 const SEED_PRODUCTS: Product[] = [
@@ -214,7 +214,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       id: uuid(), owner_id: owner, product_id: product?.id ?? null, product_name: input.name,
       qty: input.qty, unit_price: input.unitPrice, tax, tax_rate: input.taxRate > 0 ? input.taxRate : null, shipping_in: input.shippingIn,
       total_cost: totalCost, cost_basis_unit: costBasisUnit, owner_kind: input.ownerKind,
-      judah_pct: input.ownerKind === "mine" || input.ownerKind === "mom_payback" ? 100 : input.ownerKind === "giovanni" ? 0 : input.judahPct,
+      judah_pct: input.ownerKind === "mine" || input.ownerKind === "mom_payback" || input.ownerKind === "mom_split" ? 100 : input.ownerKind === "giovanni" ? 0 : input.judahPct,
       paid_via: input.paidVia, purchased_on: new Date().toISOString().slice(0, 10),
       show_id: input.showId ?? null,
     };
@@ -249,13 +249,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         m.profit = Math.round((m.profit + 0.3) * 100) / 100;
         m.judahShare = Math.round(m.netProceeds * (row.lot.judah_pct / 100) * 100) / 100;
       }
-      // Consignment lots: Mom gets cost + her profit share; Judah's share is only what he keeps,
-      // so the Giovanni balance (built on judah_share) stays honest too.
+      // Mom-paid lots (Jen's formula): the buy already put the full cost on the
+      // owed-to-Mom ledger; the sale adds her 50% of its actual profit. Judah's
+      // share of the proceeds stays whole — Giovanni owes him everything he
+      // collected, and the Mom ledger settles out of that.
       let momShare = 0;
-      if (row.lot.owner_kind === "mom_split") {
-        const mm = momSplitMath(m.netProceeds, m.costBasisTotal, row.lot.judah_pct);
-        momShare = mm.momShare;
-        m.judahShare = mm.judahKeep;
+      if (row.lot.owner_kind === "mom_payback" || row.lot.owner_kind === "mom_split") {
+        momShare = momProfitShare(m.profit);
+        m.judahShare = m.netProceeds;
       }
       const product = data.products.find((x) => x.id === row.lot.product_id);
       const sale: Sale = {
@@ -407,10 +408,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const m = quickSaleMath({ qty: input.qty, unitPrice: input.unitPrice, costBasisUnit: input.lot.cost_basis_unit, judahPct: input.lot.judah_pct });
     let judahShare = m.judahShare;
     let momShare = 0;
-    if (input.lot.owner_kind === "mom_split") {
-      const mm = momSplitMath(m.gross, m.costBasisTotal, input.lot.judah_pct);
-      momShare = mm.momShare;
-      judahShare = mm.judahKeep;
+    if (input.lot.owner_kind === "mom_payback" || input.lot.owner_kind === "mom_split") {
+      momShare = momProfitShare(m.profit);
+      judahShare = m.gross;
     }
     const product = data.products.find((x) => x.id === input.lot.product_id);
     const sale: Sale = {
@@ -442,10 +442,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const activeShow = useMemo(() => data.shows.find((s) => s.status === "open") ?? null, [data.shows]);
 
-  // Owed to Mom = pay-back buys (her money out) + her shares from consignment
-  // sales − repayments Judah has logged. Mirrors the Giovanni ledger, reversed.
+  // Owed to Mom = every Mom-paid buy at full cost (her money out) + her 50% of
+  // each sale's actual profit − repayments Judah has logged. (Jen's formula.)
   const momOwed = useMemo(() => {
-    const payback = data.purchases.filter((p) => p.owner_kind === "mom_payback").reduce((s, p) => s + Number(p.total_cost), 0);
+    const payback = data.purchases.filter((p) => p.owner_kind === "mom_payback" || p.owner_kind === "mom_split").reduce((s, p) => s + Number(p.total_cost), 0);
     const shares = data.sales.reduce((s, x) => s + Number(x.mom_share ?? 0), 0);
     const repaid = data.momPayments.reduce((s, p) => s + Number(p.amount), 0);
     return Math.round((payback + shares - repaid) * 100) / 100;

@@ -82,21 +82,15 @@ export function showCashExpected(cashFloat: number, cashSalesTotal: number, cash
   return round2(cashFloat + cashSalesTotal - cashBuysTotal);
 }
 
-export interface MomSplitMath {
-  momShare: number; // what this sale adds to the owed-to-Mom ledger
-  judahKeep: number; // what Judah keeps of the net proceeds
-}
-
-// Consignment split (Jen, 2026-11-06): Mom fronted the cost. On a sale she gets
-// her cost back first, then the PROFIT splits — judahProfitPct is Judah's share
-// of the profit. On a losing sale the proceeds all go to Mom (she took the risk
-// on her money) and Judah keeps nothing from that sale.
-export function momSplitMath(netProceeds: number, costBasisTotal: number, judahProfitPct: number): MomSplitMath {
-  const profit = round2(netProceeds - costBasisTotal);
-  const momShare = profit > 0
-    ? round2(costBasisTotal + profit * ((100 - judahProfitPct) / 100))
-    : round2(netProceeds);
-  return { momShare, judahKeep: round2(netProceeds - momShare) };
+// Mom's cut of a sale (Jen's formula, settled 2026-11-07): when Mom paid for an
+// item, Judah owes her the item's full cost back (tracked on the buy side of the
+// ledger) PLUS 50% of the sale's actual profit — profit being what he got for it
+// after TCGplayer fees and shipping paid, minus the item's cost. A losing sale
+// shares the loss the same way, so this can be negative. Judah's share of the
+// proceeds themselves is untouched: Giovanni still owes him everything he
+// collected, and the Mom ledger is settled from that.
+export function momProfitShare(profit: number): number {
+  return round2(profit * 0.5);
 }
 
 export function money(n: number): string {
