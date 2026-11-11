@@ -469,3 +469,16 @@ Bank, then Account / Sign In and Check for updates at the very bottom
 where settings belong. This supersedes #33's move of Check for updates
 to the top — that fixed findability the wrong way; Jen's settled
 layout is jobs first, housekeeping last.
+#40 — Price lookups route through the cloud books (Jen's key test failed,
+2026-11-11). Root cause, verified: tcgapi.dev works fine server-side
+(a bad key gets its real "invalid key" answer), but its CORS policy
+allows only its own origin — the browser app can NEVER call it
+directly, so every test said "didn't answer" no matter how good the
+key was. Jen's copy was fine; the app's wiring was wrong. Fix:
+migration 016 adds price_lookup_start / price_lookup_result RPCs
+(pg_net) — the app hands the cloud books the product name and the
+user's own key per call (key never stored server-side), the database
+fetches, the app polls for the answer (~5-10s). Failures now surface
+the service's actual words instead of "didn't answer." Verified as the
+anon app role with a dummy key: the service's real 401 message came
+back through the RPC.

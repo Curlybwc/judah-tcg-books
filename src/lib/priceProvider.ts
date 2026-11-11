@@ -106,11 +106,30 @@ class TcgApiPriceProvider implements PriceProvider {
     const cached = readCache(name);
     if (cached !== null) return { price: cached, provider: "TCG API — real market price", isSample: false };
     try {
-      const res = await fetch(`https://api.tcgapi.dev/v1/search?q=${encodeURIComponent(name)}&game=pokemon&per_page=10`, {
-        headers: { "X-API-Key": key },
-      });
-      if (!res.ok) throw new Error(`http ${res.status}`);
-      const json = (await res.json()) as { data?: TcgApiItem[] };
+      // The price service's CORS policy only allows its own website, so the
+      // browser can never call it directly (DECISIONS #40). The call goes
+      // through the app's own cloud books instead: start + poll an RPC that
+      // fetches server-side with the user's own key (never stored server-side).
+      const { supabase } = await import("./supabase");
+      const start = await supabase.rpc("price_lookup_start", { p_name: name, p_key: key });
+      if (start.error || typeof start.data !== "number") throw new Error("start failed");
+      const reqId = start.data as number;
+      let body: { data?: TcgApiItem[] } | null = null;
+      let failMsg = "";
+      for (let i = 0; i < 16 && !body && !failMsg; i++) {
+        await new Promise((r) => setTimeout(r, 1200));
+        const res = await supabase.rpc("price_lookup_result", { p_id: reqId });
+        if (res.error) continue;
+        const out = res.data as { state?: string; ok?: boolean; body?: { data?: TcgApiItem[] }; error?: string };
+        if (out.state === "pending") continue;
+        if (out.ok) body = out.body ?? {};
+        else failMsg = out.error ?? "The price service said no.";
+      }
+      if (!body) {
+        const s = await SAMPLE.lookup(name);
+        return { ...s, provider: failMsg ? `The price service said: "${failMsg}" — showing SAMPLE` : "Price service is slow right now — showing SAMPLE", isSample: true };
+      }
+      const json = body;
       const items = (json.data ?? []).filter((d) => typeof d.market_price === "number" && d.market_price > 0);
       if (!items.length) {
         const s = await SAMPLE.lookup(name);
