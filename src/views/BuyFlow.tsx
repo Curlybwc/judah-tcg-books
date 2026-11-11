@@ -81,7 +81,7 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
 
   return (
     <div>
-      <ScreenTitle title="🛒 I Bought Product" sub="One step at a time. Big buttons only." />
+      <ScreenTitle title="🛒 Add Inventory" sub="One step at a time. Big buttons only." />
       <StepRail steps={STEPS} current={step} />
 
       {step === 0 && (

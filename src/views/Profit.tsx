@@ -34,7 +34,7 @@ export default function Profit({ go }: { go: (v: import("../App").View) => void 
 
   return (
     <div>
-      <ScreenTitle title="📈 Check My Profit" sub="Real math from your buys and sales." />
+      <ScreenTitle title="📈 Profit" sub="Real math from your buys and sales." />
       <div className="grid gap-3 mb-4">
         <ProfitCard label="Profit this week" value={week} sub={`${weekCount} sale${weekCount === 1 ? "" : "s"} this week`} />
         <ProfitCard label="Profit this month" value={month} />

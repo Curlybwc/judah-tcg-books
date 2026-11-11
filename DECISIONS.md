@@ -447,3 +447,16 @@ button that runs the normal Buy flow, whose done screen already
 returns here ("See inventory"). Search, price lookups, photos, edit
 buy, and bulk edit were already on this screen — it is now the single
 home for stock, not just a viewing list.
+
+#38 — Fewer words; Inventory is the one stock door (Jen, 2026-11-11:
+"you always use more words than necessary"). Home is now: Inventory ·
+Show Mode · Sales · Price Scanner · Who Owes Who · Profit. Renames:
+"I Sold on TCGplayer" → Sales; "Scan for Price" → Price Scanner;
+"Check My Profit" → Profit (screen titles match). "I Bought Product"
+and "Quick Add" lost their Home buttons — both live inside Inventory
+now (＋ Add inventory + ⚡ Quick Add buttons at its top), and both
+flows already return to Inventory when saved. Who Owes Who: Jen
+considered "Debt," ruled LEAVE IT FOR NOW. Shipping has no button of
+its own — shipping in rides inside each buy's cost basis; shipping out
+is per-order in Sales (or auto-filled from Pirate Ship). A standalone
+"Costs" totals button was floated, not ruled.

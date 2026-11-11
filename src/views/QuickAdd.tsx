@@ -108,7 +108,7 @@ export default function QuickAdd({ go }: { go: (v: View) => void }) {
         <p className="text-slate-300 mt-2">They're all in your for-sale stock now, each with its own cost per item.</p>
         <div className="grid gap-3 mt-6">
           <BigButton onClick={() => setSavedCount(null)}>Add more</BigButton>
-          <BigButton color="slate" onClick={() => go("inventory")}>See what I have for sale</BigButton>
+          <BigButton color="slate" onClick={() => go("inventory")}>See inventory</BigButton>
           <BigButton color="slate" onClick={() => go("home")}>Back to start</BigButton>
         </div>
       </div>

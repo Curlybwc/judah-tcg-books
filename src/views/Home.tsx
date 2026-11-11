@@ -56,14 +56,12 @@ export default function Home({ go }: { go: (v: View) => void }) {
       )}
 
       <div className="grid gap-3">
+        <JobButton emoji="📦" label="Inventory" sub="Stock, prices, and adding what you bought" onClick={() => go("inventory")} />
         <JobButton emoji="🎪" label="Show Mode" sub={activeShow ? `LIVE: ${activeShow.name} — tap to go back in` : "Show day? Buy and sell at the table here"} onClick={() => go("show")} />
-        <JobButton emoji="🛒" label="I Bought Product" sub="Add something you just bought" onClick={() => go("buy")} />
-        <JobButton emoji="⚡" label="Quick Add" sub="Bought several things? Paste a list or say them out loud" onClick={() => go("quickadd")} />
-        <JobButton emoji="💸" label="I Sold on TCGplayer" sub="Upload the orders file from TCGplayer" onClick={() => go("sell")} />
-        <JobButton emoji="📷" label="Scan for Price" sub="What is this worth right now?" onClick={() => go("scan")} />
+        <JobButton emoji="💸" label="Sales" sub="Upload the orders file from TCGplayer" onClick={() => go("sell")} />
+        <JobButton emoji="📷" label="Price Scanner" sub="What is this worth right now?" onClick={() => go("scan")} />
         <JobButton emoji="🤝" label="Who Owes Who" sub={(() => { const youOwe = totalOwed + momOwed; const parts: string[] = []; if (giovanniOwed > 0) parts.push(`Giovanni owes you ${money(giovanniOwed)}`); if (youOwe > 0) parts.push(`You owe ${money(youOwe)}`); return parts.length ? parts.join(" · ") : "Giovanni, Mom & loans — every balance in one place"; })()} onClick={() => go("balances")} />
-        <JobButton emoji="📈" label="Check My Profit" sub="Week, month, and all time" onClick={() => go("profit")} />
-        <JobButton emoji="📦" label="Inventory" sub="Everything you have in stock — add, search, and edit it here" onClick={() => go("inventory")} />
+        <JobButton emoji="📈" label="Profit" sub="Week, month, and all time" onClick={() => go("profit")} />
       </div>
 
       <button onClick={() => go("bank")} className="w-full mt-6 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-300 font-semibold">🏦 Bank (coming soon)</button>

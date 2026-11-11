@@ -195,7 +195,7 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
 
   return (
     <div>
-      <ScreenTitle title="💸 I Sold on TCGplayer" sub="Sales come from the orders file TCGplayer gives you." />
+      <ScreenTitle title="💸 Sales" sub="From the orders file TCGplayer gives you." />
       <StepRail steps={STEPS} current={step} />
 
       {step === 0 && (

@@ -134,6 +134,7 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
       <div className="mb-3">
         <BigButton onClick={() => go("buy")}>＋ Add inventory — I bought product</BigButton>
       </div>
+      <button onClick={() => go("quickadd")} className="w-full mb-3 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-bold">⚡ Quick Add — bought several things at once</button>
       <input className={`${inputCls} mb-4`} placeholder="🔍 Search your stock — type a name or barcode…" value={query} onChange={(e) => setQuery(e.target.value)} />
       {q && <p className="text-slate-400 text-sm mb-3">{visibleGroups.length} product{visibleGroups.length === 1 ? "" : "s"} match "{query}".</p>}
       <button onClick={() => { setEditMode(!editMode); setSelected(new Set()); setEditMsg(null); setConfirmRemove(false); }}

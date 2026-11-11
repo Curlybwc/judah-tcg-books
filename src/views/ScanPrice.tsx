@@ -21,7 +21,7 @@ export default function ScanPrice({ go }: { go: (v: View) => void }) {
 
   return (
     <div>
-      <ScreenTitle title="📷 Scan for Price" sub="Point, type, or say the name — get the going price." />
+      <ScreenTitle title="📷 Price Scanner" sub="Point, type, or say the name — get the going price." />
       <StepRail steps={STEPS} current={step} />
 
       {step === 0 && (
