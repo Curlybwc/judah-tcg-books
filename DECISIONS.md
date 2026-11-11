@@ -611,3 +611,13 @@ fixed in this pass: the sample-orders link pointed at the site root
 and 404'd under the /judah-tcg-books/ path (Jen: "couldn't download
 the sample orders file") — it uses the app base path now, and the
 sample itself is in the real order-list shape.
+#52 — Sales entry's primary path is Muse clicking through (Jen,
+2026-11-11). The order-list file proves totals only; what was IN each
+order exists solely behind clicks in the seller portal. So Sales gains
+🤖 Ask Muse to read the orders — a paste-ready prompt covering the
+whole job: click every order since the last recorded sale, capture
+line items, pair Pirate Ship label costs in Shipments (Mom-paid),
+match to lots with the no-guessing rule, record sales with the app's
+fee math, decrement stock, verify by readback, report a table. The
+file import stays as the manual path. First live run: Jen's 31 real
+orders (Sep 16–Nov 7, $6,993.06) harvested the same day.

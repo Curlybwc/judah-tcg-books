@@ -43,7 +43,7 @@ function pickField(headers: string[], wants: string[]): string | null {
 }
 
 export default function SellFlow({ go }: { go: (v: View) => void }) {
-  const { lots, products, recordSales, giovanniOwed, sales: existingSales } = useStore();
+  const { lots, products, recordSales, giovanniOwed, sales: existingSales, sets, currentSetId } = useStore();
   const [step, setStep] = useState(0);
   const [rows, setRows] = useState<Row[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -61,7 +61,38 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
   const [pickedChip, setPickedChip] = useState<number | null>(null);
   const [usedChips, setUsedChips] = useState<Set<number>>(new Set());
   const [fileNote, setFileNote] = useState<string | null>(null);
+  const [askSalesOpen, setAskSalesOpen] = useState(false);
+  const [askSalesCopied, setAskSalesCopied] = useState(false);
   const keyRef = useRef(1000);
+
+  // The tandem loop for sales (DECISIONS #52): TCGplayer's export lists
+  // order totals but never says WHAT was in an order — the only way to
+  // know is clicking into each order. So the app writes the prompt and
+  // Muse does the clicking, then writes the sales into the books.
+  function buildAskSalesPrompt(): string {
+    const setName = sets.find((x) => x.id === currentSetId)?.name ?? "the books";
+    const last = existingSales.length ? existingSales.map((x) => x.sold_on).sort().slice(-1)[0] : null;
+    const since = last ? `after ${last} (the last sale already in the books)` : "from the last 90 days (no sales are in the books yet)";
+    return `Read my TCGplayer orders and record the sales in my Judah TCG Books.
+
+The books live in Supabase project zjsxplnyphejklsdhqxz, set owner_id = '${currentSetId}' ("${setName}"). Tables: products, inventory_lots, sales.
+
+1. Sign in to TCGplayer and open Seller Portal → Orders. Work through every order ${since}. Skip cancelled/refunded orders.
+2. Open EACH order and write down: order number, order date, buyer name, shipping charged, and every line item — the exact product name TCGplayer shows, quantity, and unit price. (The CSV export only has order totals; the line items are why you're clicking.)
+3. In Pirate Ship (Shipments list), find each order's label cost and pair it with its order. Postage from Pirate Ship was paid by Mom — record ship_paid_by = 'mom' for those. If an order has no Pirate Ship label, shipping paid is 0.
+4. Match each line item to a product + lot in the books by name. If a name doesn't pin down ONE lot confidently, DO NOT guess — leave that sale out and flag it for me.
+5. Record each sale (one sales row per line item) and take the quantity off the lot: fees are commission = 10.75% of (item total + shipping charged), transaction fee = 2.5% of the same + $0.30 once per order; net = item total + shipping charged − fees − shipping paid; profit = net − cost basis. Mom-paid lots (owner_kind mom_payback/mom_split): mom_share = 50% of the profit (signed), and Judah's share stays the full net. Giovanni lots: Judah's share is 0 — Giovanni keeps his own money; only the postage is tracked.
+6. Read the rows back to verify, then show me a table: order — product — qty — sold for — profit, plus anything you left out and why.`;
+  }
+
+  async function copyAskSalesPrompt() {
+    const text = buildAskSalesPrompt();
+    try { await navigator.clipboard.writeText(text); setAskSalesCopied(true); }
+    catch {
+      const ta = document.getElementById("ask-sales-prompt") as HTMLTextAreaElement | null;
+      if (ta) { ta.select(); document.execCommand("copy"); setAskSalesCopied(true); }
+    }
+  }
 
   async function readTableFile(file: File): Promise<Record<string, string>[] | null> {
     if (/\.xlsx$/i.test(file.name)) {
@@ -274,6 +305,14 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
           </div>
           <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
           <BigButton onClick={() => fileRef.current?.click()}>📤 Upload the orders file</BigButton>
+          <button onClick={() => { setAskSalesOpen(!askSalesOpen); setAskSalesCopied(false); }} className="w-full mt-3 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-bold">🤖 Ask Muse to read the orders</button>
+          {askSalesOpen && (
+            <div className="rounded-2xl bg-slate-800 border border-sky-700 p-4 mt-3">
+              <p className="text-slate-300 text-sm mb-2">The file says what each order <b>totaled</b> — not what was <b>in</b> it. Muse can click into every order on TCGplayer, read the actual products, pair the Pirate Ship labels, and record the finished sales here. Copy this prompt and paste it into a chat with Muse:</p>
+              <textarea id="ask-sales-prompt" readOnly rows={12} className="w-full rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-xs p-3 mb-2" value={buildAskSalesPrompt()} />
+              <button onClick={() => void copyAskSalesPrompt()} className="w-full rounded-xl bg-yellow-400 text-slate-900 py-3 font-black">{askSalesCopied ? "✓ Copied — now paste it to Muse" : "📋 Copy prompt"}</button>
+            </div>
+          )}
           <p className="text-slate-400 text-sm mt-3">🚢 Have a Pirate Ship file too? It comes later — on the <b className="text-slate-200">Shipping you paid</b> step, after you match the sales.</p>
           {parseError && <p className="mt-3 rounded-xl bg-rose-900/50 border border-rose-700 text-rose-200 px-4 py-3">{parseError}</p>}
           <p className="text-slate-500 text-sm mt-4">No file handy? <a className="underline text-slate-300" href={`${import.meta.env.BASE_URL}sample-orders.csv`} download>Download the sample orders file</a> and upload it here to practice.</p>
