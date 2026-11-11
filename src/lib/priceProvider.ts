@@ -207,3 +207,60 @@ class TcgApiPriceProvider implements PriceProvider {
 
 // THE SEAM: real provider when a key is set on this device, SAMPLE otherwise.
 export const priceProvider: PriceProvider = new TcgApiPriceProvider();
+
+// --- Photo identification (DECISIONS #43) ---
+// POST /v1/identify reads a photo and returns the catalog's EXACT name for
+// the product — the fix-name loop: scan once, rename the product to their
+// name, and every later lookup is a plain (free) name search. Billed in
+// scans (25 free once per account), NOT in daily requests. Same proxy ride
+// as name lookups: identify_start + price_lookup_result.
+
+export interface IdentifyOutcome {
+  status: "matched" | "ambiguous" | "retake" | "not_found" | "unsupported" | "error";
+  message?: string;
+  scansRemaining?: number;
+  candidates: PriceResult[]; // price 0 = the scan didn't price it; price it by name
+}
+
+interface IdentifyCandidate {
+  name?: string;
+  image_url?: string | null;
+  suggested_printing?: string | null;
+  prices?: { printing?: string; market_price?: number | null }[];
+}
+
+export async function identifyByPhoto(dataUrl: string): Promise<IdentifyOutcome> {
+  const key = getPriceApiKey();
+  if (!key) return { status: "error", message: "Add the price key first (Account → Real prices) — photo scans use the same key.", candidates: [] };
+  try {
+    const { supabase } = await import("./supabase");
+    const start = await supabase.rpc("identify_start", { p_image: dataUrl, p_key: key });
+    if (start.error || typeof start.data !== "number") throw new Error("start failed");
+    const reqId = start.data as number;
+    for (let i = 0; i < 22; i++) {
+      await new Promise((r) => setTimeout(r, 1200));
+      const res = await supabase.rpc("price_lookup_result", { p_id: reqId });
+      if (res.error) continue;
+      const out = res.data as { state?: string; ok?: boolean; body?: { data?: { status?: string; message?: string | null; candidates?: IdentifyCandidate[] }; meta?: { scans_remaining?: number } }; error?: string };
+      if (out.state === "pending") continue;
+      if (!out.ok) return { status: "error", message: out.error ?? "The photo service said no.", candidates: [] };
+      const d = out.body?.data ?? {};
+      const candidates: PriceResult[] = (d.candidates ?? []).map((c) => {
+        const rows = (c.prices ?? []).filter((p) => typeof p.market_price === "number" && (p.market_price as number) > 0);
+        const row = rows.find((p) => p.printing === c.suggested_printing) ?? rows[0];
+        return {
+          price: row?.market_price ?? 0,
+          provider: "TCG API — photo scan",
+          isSample: false,
+          imageUrl: c.image_url ?? undefined,
+          matchedName: c.name,
+        };
+      });
+      const st = (d.status ?? "not_found") as IdentifyOutcome["status"];
+      return { status: st, message: d.message ?? undefined, scansRemaining: out.body?.meta?.scans_remaining, candidates };
+    }
+    return { status: "error", message: "The photo service is slow right now — try again in a moment. (A slow try still uses a scan if the photo was read.)", candidates: [] };
+  } catch {
+    return { status: "error", message: "The photo scan didn't go through — check your connection and try again.", candidates: [] };
+  }
+}

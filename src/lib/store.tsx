@@ -81,6 +81,7 @@ interface Store {
   addLoanPayment: (loanId: string, amount: number, paidOn: string, note: string) => Promise<void>;
   deleteLoanPayment: (id: string) => Promise<void>;
   refreshMarketPrice: (productId: string, name: string) => Promise<PriceResult | null>;
+  applyIdentified: (productId: string, name: string, price: number) => Promise<boolean>;
   addExpense: (amount: number, spentOn: string, category: ExpenseCategory, note: string) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
   setProductImage: (productId: string, url: string) => Promise<void>;
@@ -618,6 +619,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return r;
   }, [applyLocal]);
 
+  const applyIdentified: Store["applyIdentified"] = useCallback(async (productId, name, price) => {
+    const stamp = new Date().toISOString();
+    if (remoteRef.current) {
+      try {
+        const u = await supabase.from("products").update({ name, market_price: price, market_price_at: stamp } as never).eq("id", productId);
+        if (u.error) throw u.error;
+      } catch { setNotice("The scan worked, but saving the new name didn't — check your connection."); return false; }
+    }
+    applyLocal((d) => ({ ...d, products: d.products.map((p) => (p.id === productId ? { ...p, name, market_price: price, market_price_at: stamp } : p)) }));
+    return true;
+  }, [applyLocal]);
+
   const setProductImage: Store["setProductImage"] = useCallback(async (productId, url) => {
     if (remoteRef.current) {
       try { const u = await supabase.from("products").update({ image_url: url }).eq("id", productId); if (u.error) throw u.error; }
@@ -768,7 +781,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     ready, remote, notice, userEmail, userId, sets, members, currentSetId, switchSet, createSet, joinSet, resetJoinCode, removeMember, leaveSet, ownerId,
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
     shows: data.shows, activeShow, pendingCount: outbox.length, syncNow, startShow, closeShow, recordQuickSale,
-    momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, loans: data.loans, loanPayments: data.loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment, refreshMarketPrice, setProductImage, uploadProductPhoto, momOwed, giovanniShare, giovanniFronted, giovanniOwnNet, addMomPayment, deleteMomPayment, bulkRemoveLots,
+    momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, loans: data.loans, loanPayments: data.loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment, refreshMarketPrice, applyIdentified, setProductImage, uploadProductPhoto, momOwed, giovanniShare, giovanniFronted, giovanniOwnNet, addMomPayment, deleteMomPayment, bulkRemoveLots,
     giovanniOwed, totalProfit, signIn, signInWithGoogle, signOut, addPurchase, updatePurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
     reload: () => load(ownerRef.current),
   };

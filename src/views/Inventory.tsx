@@ -5,12 +5,13 @@ import { BigButton, Chip, Field, inputCls, MoneyInput, ScreenTitle, ownerLabel }
 import BarcodeScanner from "../components/BarcodeScanner";
 import { catalogLookup, normalizeBarcode } from "../lib/catalog";
 import type { Lot, OwnerKind, PaidVia } from "../lib/types";
-import { priceProvider } from "../lib/priceProvider";
+import { identifyByPhoto, priceProvider, type IdentifyOutcome } from "../lib/priceProvider";
+import { blobToDataUrl, compressImageFile } from "../lib/photos";
 import { useRef } from "react";
 import type { View } from "../App";
 
 export default function Inventory({ go }: { go: (v: View) => void }) {
-  const { lots, products, sales, undoPurchaseForLot, adjustStock, bulkRemoveLots, setProductImage, uploadProductPhoto, refreshMarketPrice } = useStore();
+  const { lots, products, sales, undoPurchaseForLot, adjustStock, bulkRemoveLots, setProductImage, uploadProductPhoto, refreshMarketPrice, applyIdentified } = useStore();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [adjustId, setAdjustId] = useState<string | null>(null);
   const [editBuyId, setEditBuyId] = useState<string | null>(null);
@@ -30,6 +31,39 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
   const [photoBusy, setPhotoBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const pendingPhotoProduct = useRef<string | null>(null);
+  const identifyRef = useRef<HTMLInputElement>(null);
+  const pendingIdentify = useRef<{ productId: string; name: string } | null>(null);
+  const [identifyBusy, setIdentifyBusy] = useState(false);
+  const [identifyPanel, setIdentifyPanel] = useState<{ productId: string; name: string; outcome: IdentifyOutcome } | null>(null);
+
+  function pickIdentify(productId: string, name: string) {
+    pendingIdentify.current = { productId, name };
+    identifyRef.current?.click();
+  }
+
+  async function onIdentifyFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    const target = pendingIdentify.current;
+    if (!f || !target) return;
+    setIdentifyBusy(true); setPriceMsg(null);
+    const dataUrl = await blobToDataUrl(await compressImageFile(f));
+    const outcome = await identifyByPhoto(dataUrl);
+    setIdentifyBusy(false);
+    setIdentifyPanel({ productId: target.productId, name: target.name, outcome });
+  }
+
+  async function applyCandidate(productId: string, candName: string, price: number) {
+    let p = price;
+    if (!(p > 0)) {
+      const r = await priceProvider.lookup(candName);
+      if (!r.isSample && !r.choices && r.price > 0) p = r.price;
+    }
+    if (!(p > 0)) { setPriceMsg(`Found their name — ${candName} — but no price came with it. The name was not changed; try 💲 Look up price after renaming by hand.`); return; }
+    const ok = await applyIdentified(productId, candName, p);
+    setIdentifyPanel(null);
+    if (ok) setPriceMsg(`Renamed to their exact name: ${candName} · market ${money(p)} ✓ — future lookups for it are plain name searches now.`);
+  }
 
   function pickPhoto(productId: string) {
     pendingPhotoProduct.current = productId;
@@ -195,6 +229,33 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
         </button>
       )}
       {!editMode && priceMsg && <p className="text-emerald-300 text-sm font-semibold mb-3">{priceMsg}</p>}
+      <input ref={identifyRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => void onIdentifyFile(e)} />
+      {!editMode && identifyBusy && <p className="text-slate-300 text-sm font-semibold mb-3">📷 Reading the photo… give it a few seconds.</p>}
+      {!editMode && identifyPanel && (
+        <div className="rounded-2xl bg-slate-800 border border-sky-700 p-4 mb-3">
+          <div className="flex justify-between items-start gap-3">
+            <p className="text-white font-bold">📷 Photo scan — {identifyPanel.name}</p>
+            <button onClick={() => setIdentifyPanel(null)} className="text-slate-400 font-black px-2">✕</button>
+          </div>
+          {(identifyPanel.outcome.status === "matched" || identifyPanel.outcome.status === "ambiguous") && identifyPanel.outcome.candidates.length > 0 ? (
+            <>
+              <p className="text-slate-400 text-sm mt-1 mb-2">Tap the right one to rename this product to their exact name and save its price. After that, lookups are plain name searches — no more photo scans needed for it.</p>
+              <div className="grid gap-2">
+                {identifyPanel.outcome.candidates.slice(0, 4).map((c, i) => (
+                  <button key={i} onClick={() => void applyCandidate(identifyPanel.productId, c.matchedName ?? "", c.price)} className="flex items-center gap-3 rounded-xl bg-slate-700/60 border border-slate-600 p-2.5 text-left">
+                    {c.imageUrl && <img src={c.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover bg-slate-700" />}
+                    <span className="flex-1 text-slate-100 font-bold text-sm">{c.matchedName}</span>
+                    <span className="text-white font-black">{c.price > 0 ? money(c.price) : "price on tap"}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-amber-200 text-sm mt-1">{identifyPanel.outcome.status === "retake" ? `One more photo: ${identifyPanel.outcome.message ?? "the picture wasn't clear enough."}` : identifyPanel.outcome.status === "not_found" ? "The photo read fine, but nothing in their catalog matches it." : identifyPanel.outcome.message ?? "The photo scan didn't work."}</p>
+          )}
+          {identifyPanel.outcome.scansRemaining != null && <p className="text-slate-500 text-xs mt-2">📷 {identifyPanel.outcome.scansRemaining} photo scans left on the account</p>}
+        </div>
+      )}
       {!editMode && groups.length === 0 && (
         <div className="rounded-2xl bg-slate-800 border border-slate-700 p-5 text-slate-300">
           Nothing in inventory yet. Tap “＋ Add inventory” when you buy something to sell.
@@ -221,6 +282,7 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
                       <button disabled={photoBusy} onClick={() => pickPhoto(g.productId!)} className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200 disabled:opacity-50">{g.imageUrl ? "📷 Change photo" : "📷 Add your photo"}</button>
                       {!g.imageUrl && <button disabled={photoBusy} onClick={() => void findOnlinePhoto(g.productId!, g.name)} className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200 disabled:opacity-50">🌐 Find online photo</button>}
                       <button disabled={priceBusy} onClick={() => void lookupOne(g)} className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200 disabled:opacity-50">💲 Look up price</button>
+                      <button disabled={identifyBusy} onClick={() => pickIdentify(g.productId!, g.name)} className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200 disabled:opacity-50">📷 Fix name by photo</button>
                     </div>
                   )}
                 </div>

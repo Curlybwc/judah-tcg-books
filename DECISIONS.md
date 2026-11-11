@@ -510,3 +510,17 @@ had been writing them. Also confirmed from her screenshots + the
 pg_net log: Charizard $4.11 real, 151 ETB $493.08 real (exact name
 "151 Elite Trainer Box" — the long "Scarlet & Violet …" form returns
 zero results from their search).
+#43 — Photo scans identify products; Inventory renames to their exact
+name (Jen's loop, 2026-11-11). tcgapi.dev DOES have photo search —
+POST /v1/identify, 25 scans free ONCE per account, then ~1.5¢/scan
+packs; Maven's "photos — no" answer was wrong (it covered only the
+name-search endpoint) and Jen caught it from their pricing page.
+Design (hers): scan a product once → get the catalog's exact name →
+rename the app product to it → every later lookup is a free name
+search; scans are spent only on first identification. Built: migration
+017 identify_start RPC (JSON data-URL body, same pg_net proxy ride,
+verified with a dummy key); Price Scanner's photo button is real
+(matched → price card with their name; ambiguous → pick; retake →
+their words + retry); Inventory has "📷 Fix name by photo" per product
+— tap a candidate to rename + save its price in one action
+(store.applyIdentified). Scans remaining shows after each scan.
