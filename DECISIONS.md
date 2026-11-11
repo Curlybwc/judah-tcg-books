@@ -589,3 +589,25 @@ multi-product orders (extra rows carry $0 shipping charged). Cancelled/
 refunded orders are skipped and counted in the note. The file proves
 the money; Judah supplies the what — the same trust split as photo ID.
 Her file, verified by running the parser on it: 31 importable orders, product totals $6,993.06; 2 cancelled/refunded rows skipped; dates parse (weekday prefix stripped).
+#50 — Pirate Ship has TWO exports; the app takes both (2026-11-11,
+Jen's real Transactions.xlsx). The Shipments grid export matches by
+order number automatically (#33). The Account → Transactions ledger
+(Date/Type/Description/Total/Balance, .xlsx) proves amounts + dates
+only — no order, no recipient — so it can never auto-match. Per Jen:
+only the charges from the day she picks (her file: 16 labels on
+11/11/26, $162.22; 59 labels / $474.01 back to April), and only ones
+that match a sale — the flow shows that day's amounts as chips and
+Judah taps each onto its order. Unassigned amounts never enter the
+books. The app now reads .xlsx as well as .csv for this step.
+#51 — Postage is Mom's money (Jen, 2026-11-11): "every one of those
+shipping charges he paid from MY bank account, so it needs to go into
+what he owes me." Migration 019 sales.ship_paid_by ('judah'|'mom').
+Every order in the Shipping step asks "Who paid?" — Mom is the
+default, and anything filled from a Pirate Ship file is Mom
+automatically. Mom-paid postage adds to owed-to-Mom (Balances shows
+the postage line), drops out of Giovanni's fronted-shipping debt to
+Judah, and still counts as a cost in the sale's profit math. Also
+fixed in this pass: the sample-orders link pointed at the site root
+and 404'd under the /judah-tcg-books/ path (Jen: "couldn't download
+the sample orders file") — it uses the app base path now, and the
+sample itself is in the real order-list shape.

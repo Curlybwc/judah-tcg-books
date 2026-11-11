@@ -12,7 +12,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const tmp = mkdtempSync(join(tmpdir(), "jtb-ps-"));
 cpSync(join(root, "src/lib/pirateship.ts"), join(tmp, "pirateship.ts"));
 execFileSync(join(root, "node_modules/.bin/tsc"), ["pirateship.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
-const { extractPsRows, psTotalsByOrder, psTotalsByName, orderKey } = createRequire(import.meta.url)(join(tmp, "out/pirateship.js"));
+const { extractPsRows, psTotalsByOrder, psTotalsByName, orderKey, isLedgerFile, extractLedgerAmounts } = createRequire(import.meta.url)(join(tmp, "out/pirateship.js"));
 
 let fails = 0;
 function eq(label, actual, expected) {
@@ -51,3 +51,20 @@ eq("alternate order id", alt.rows[0].orderId, "A-9");
 
 console.log(fails ? `\n${fails} FAILURES` : "\nAll Pirate Ship tests passed.");
 process.exit(fails ? 1 : 0);
+
+// The Transactions ledger (DECISIONS #50): labels only, amounts positive,
+// dates normalized; payments never count as postage.
+const ledger = [
+  { "Date": "11/11/26 2:09 PM CST", "Type": "Payment", "Description": "Bank Payment: Main Checking", "Total": "9.5", "Balance": "0.0" },
+  { "Date": "11/11/26 2:09 PM CST", "Type": "Label", "Description": "TCGplayer_ShippingExport_20261111_140751: 1 Label Batch", "Total": "-9.5", "Balance": "-9.5" },
+  { "Date": "11/11/26 2:07 PM CST", "Type": "Label", "Description": "TCGplayer_ShippingExport_20261111_140501: 1 Label Batch", "Total": "-8.36", "Balance": "-8.36" },
+  { "Date": "4/8/26 5:25 PM CDT", "Type": "Label", "Description": "TCGplayer_ShippingExport_20260408_172500: 1 Label Batch", "Total": "-6.25", "Balance": "-6.25" },
+];
+eq("ledger: detected", isLedgerFile(ledger), true);
+eq("ledger: grid file is not a ledger", isLedgerFile(records), false);
+const la = extractLedgerAmounts(ledger);
+eq("ledger: 3 label amounts", la.amounts.length, 3);
+eq("ledger: first amount", la.amounts[0].cost, 9.5);
+eq("ledger: date normalized", la.amounts[0].date, "2026-11-11");
+eq("ledger: old date normalized", la.amounts[2].date, "2026-04-08");
+eq("ledger: total", Math.round(la.amounts.reduce((x, a) => x + a.cost, 0) * 100) / 100, 24.11);

@@ -14,7 +14,7 @@ cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
 cpSync(join(root, "src/lib/quickbuy.ts"), join(tmp, "quickbuy.ts"));
 cpSync(join(root, "src/lib/catalog.ts"), join(tmp, "catalog.ts"));
 execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "quickbuy.ts", "catalog.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
-const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping, momShippingOwed } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
 const { parseQuickBuyLine, allocateShipping } = createRequire(import.meta.url)(join(tmp, "out/quickbuy.js"));
 const { UPC_CATALOG, normalizeBarcode, catalogLookup } = createRequire(import.meta.url)(join(tmp, "out/catalog.js"));
 
@@ -139,6 +139,11 @@ eq("fronted: split sale ignored", frontedShipping([{ lot_id: "s1", shipping_paid
 eq("fronted: show sale ignored", frontedShipping([{ lot_id: "g1", shipping_paid: 5.5, channel: "show_cash" }], fsLots), 0);
 eq("fronted: legacy channel-less sale counts", frontedShipping([{ lot_id: "g1", shipping_paid: 4.25, channel: null }], fsLots), 4.25);
 eq("fronted: sums across orders", frontedShipping([{ lot_id: "g1", shipping_paid: 5.5, channel: "tcgplayer" }, { lot_id: "g1", shipping_paid: 3.25, channel: "tcgplayer" }], fsLots), 8.75);
+// Mom-fronted postage (DECISIONS #51): never Giovanni's debt to Judah;
+// it lands on the owed-to-Mom ledger instead.
+eq("fronted: mom-paid giovanni sale excluded", frontedShipping([{ lot_id: "g1", shipping_paid: 9.5, channel: "tcgplayer", ship_paid_by: "mom" }], fsLots), 0);
+eq("momship: sums mom-paid rows", momShippingOwed([{ lot_id: "g1", shipping_paid: 9.5, ship_paid_by: "mom" }, { lot_id: "m1", shipping_paid: 8.36, ship_paid_by: "mom" }, { lot_id: "m1", shipping_paid: 5.5, ship_paid_by: "judah" }]), 17.86);
+eq("momship: legacy rows count as judah", momShippingOwed([{ lot_id: "m1", shipping_paid: 5.5 }]), 0);
 
 console.log(fails === 0 ? "ALL MATH TESTS PASSED" : `${fails} FAILURES`);
 process.exit(fails ? 1 : 0);

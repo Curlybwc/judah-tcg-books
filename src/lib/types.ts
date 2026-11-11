@@ -67,6 +67,7 @@ export interface Sale {
   item_price: number; // line total for the items (unit price x qty)
   shipping_charged: number;
   shipping_paid: number;
+  ship_paid_by?: string; // 'judah' | 'mom' — who fronted the postage (DECISIONS #51)
   commission: number;
   transaction_fee: number;
   fees: number;

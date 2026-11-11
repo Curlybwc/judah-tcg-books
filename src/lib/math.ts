@@ -161,7 +161,7 @@ export function loanMath(loan: LoanLike, paidTotal: number): LoanMathResult {
   return { interestAmount, totalToRepay, paid, owed, paidOff: totalToRepay > 0 && owed <= 0 };
 }
 
-export interface FrontedSale { lot_id: string | null; shipping_paid: number; channel?: string | null }
+export interface FrontedSale { lot_id: string | null; shipping_paid: number; channel?: string | null; ship_paid_by?: string | null }
 export interface LotKind { id: string; owner_kind: string }
 
 /** Shipping Judah fronted on GIOVANNI's product (DECISIONS #36, Jen's
@@ -174,7 +174,21 @@ export function frontedShipping(sales: FrontedSale[], lots: LotKind[]): number {
   let total = 0;
   for (const s of sales) {
     if (s.channel && s.channel !== "tcgplayer") continue;
+    if (s.ship_paid_by === "mom") continue; // Mom fronted it — not Judah's money, not Giovanni's debt to Judah
     if (s.lot_id && kind.get(s.lot_id) === "giovanni") total += Number(s.shipping_paid) || 0;
+  }
+  return round2(total);
+}
+
+/** Postage Mom fronted (DECISIONS #51, Jen's ruling): the Pirate Ship
+ *  account draws on HER bank account, so every Mom-paid shipping charge
+ *  is money out of her pocket and joins what Judah owes her. Only the
+ *  first row of an order carries shipping_paid (same convention as
+ *  frontedShipping), so summing rows never double-counts. */
+export function momShippingOwed(sales: FrontedSale[]): number {
+  let total = 0;
+  for (const s of sales) {
+    if (s.ship_paid_by === "mom") total += Number(s.shipping_paid) || 0;
   }
   return round2(total);
 }

@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { priceProvider, type PriceResult } from "./priceProvider";
-import { frontedShipping } from "./math";
+import { frontedShipping, momShippingOwed } from "./math";
 import { SAMPLE_OWNER_ID } from "./config";
 import type { BookMember, BookSet, Expense, ExpenseCategory, GiovanniPayment, Loan, LoanInput, LoanPayment, Lot, MomPayment, Product, Purchase, Sale, Show } from "./types";
 import { blobToDataUrl, compressImageFile } from "./photos";
@@ -89,6 +89,7 @@ interface Store {
   setProductImage: (productId: string, url: string) => Promise<void>;
   uploadProductPhoto: (productId: string, file: File) => Promise<boolean>;
   momOwed: number;
+  momShipOwed: number;
   giovanniShare: number;
   giovanniFronted: number;
   giovanniOwnNet: number;
@@ -107,7 +108,7 @@ interface Store {
   signInWithGoogle: () => Promise<string | null>;
   signOut: () => Promise<void>;
   addPurchase: (input: { name: string; barcode?: string; qty: number; unitPrice: number; taxRate: number; shippingIn: number; ownerKind: "mine" | "giovanni" | "split" | "mom_payback" | "mom_split"; judahPct: number; paidVia: "USAA" | "Cash" | "Other"; showId?: string }) => Promise<Purchase>;
-  recordSales: (rows: { lot: Lot; qty: number; unitItemPrice: number; shippingCharged: number; shippingPaid: number; orderId: string | null; soldOn: string; orderGroupFirst?: boolean }[]) => Promise<Sale[]>;
+  recordSales: (rows: { lot: Lot; qty: number; unitItemPrice: number; shippingCharged: number; shippingPaid: number; shipPaidBy?: string; orderId: string | null; soldOn: string; orderGroupFirst?: boolean }[]) => Promise<Sale[]>;
   addGiovanniPayment: (amount: number, paidOn: string, note: string) => Promise<void>;
   deleteSale: (sale: Sale) => Promise<void>;
   adjustStock: (lot: Lot, qtyRemoved: number, reason: string) => Promise<void>;
@@ -479,7 +480,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const sale: Sale = {
         id: uuid(), owner_id: owner, product_id: row.lot.product_id, lot_id: row.lot.id,
         product_name: product?.name ?? "Product", qty: row.qty, item_price: Math.round(row.unitItemPrice * row.qty * 100) / 100,
-        shipping_charged: row.shippingCharged, shipping_paid: row.shippingPaid, commission: m.commission,
+        shipping_charged: row.shippingCharged, shipping_paid: row.shippingPaid, ship_paid_by: row.shipPaidBy ?? "judah", commission: m.commission,
         transaction_fee: m.transactionFee, fees: m.fees, net_proceeds: m.netProceeds,
         cost_basis_total: m.costBasisTotal, profit: m.profit, judah_share: m.judahShare, mom_share: momShare,
         order_id: row.orderId, sold_on: row.soldOn,
@@ -748,7 +749,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const sale: Sale = {
       id: uuid(), owner_id: ownerRef.current, product_id: input.lot.product_id, lot_id: input.lot.id,
       product_name: product?.name ?? "Product", qty: input.qty, item_price: m.gross,
-      shipping_charged: 0, shipping_paid: 0, commission: 0, transaction_fee: 0, fees: 0,
+      shipping_charged: 0, shipping_paid: 0, ship_paid_by: "judah", commission: 0, transaction_fee: 0, fees: 0,
       net_proceeds: m.gross, cost_basis_total: m.costBasisTotal, profit: m.profit, judah_share: judahShare, mom_share: momShare,
       order_id: null, sold_on: new Date().toISOString().slice(0, 10), show_id: input.showId, channel: input.channel,
     };
@@ -776,12 +777,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Owed to Mom = every Mom-paid buy at full cost (her money out) + her 50% of
   // each sale's actual profit − repayments Judah has logged. (Jen's formula.)
+  const momShipOwed = useMemo(() => momShippingOwed(data.sales), [data.sales]);
   const momOwed = useMemo(() => {
     const payback = data.purchases.filter((p) => p.owner_kind === "mom_payback" || p.owner_kind === "mom_split").reduce((s, p) => s + Number(p.total_cost), 0);
     const shares = data.sales.reduce((s, x) => s + Number(x.mom_share ?? 0), 0);
     const repaid = data.momPayments.reduce((s, p) => s + Number(p.amount), 0);
-    return Math.round((payback + shares - repaid) * 100) / 100;
-  }, [data.purchases, data.sales, data.momPayments]);
+    return Math.round((payback + shares + momShipOwed - repaid) * 100) / 100;
+  }, [data.purchases, data.sales, data.momPayments, momShipOwed]);
 
   const giovanniShare = useMemo(() => Math.round(data.sales.filter((x) => !x.channel || x.channel === "tcgplayer").reduce((s, x) => s + Number(x.judah_share), 0) * 100) / 100, [data.sales]);
   const giovanniFronted = useMemo(() => frontedShipping(data.sales, data.lots), [data.sales, data.lots]);
@@ -807,7 +809,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     ready, remote, notice, userEmail, userId, sets, members, currentSetId, switchSet, createSet, joinSet, resetJoinCode, removeMember, leaveSet, ownerId,
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
     shows: data.shows, activeShow, pendingCount: outbox.length, syncNow, startShow, closeShow, recordQuickSale,
-    momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, loans: data.loans, loanPayments: data.loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment, refreshMarketPrice, applyIdentified, priceKeyInBooks, savePriceKey, setProductImage, uploadProductPhoto, momOwed, giovanniShare, giovanniFronted, giovanniOwnNet, addMomPayment, deleteMomPayment, bulkRemoveLots,
+    momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, loans: data.loans, loanPayments: data.loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment, refreshMarketPrice, applyIdentified, priceKeyInBooks, savePriceKey, setProductImage, uploadProductPhoto, momOwed, momShipOwed, giovanniShare, giovanniFronted, giovanniOwnNet, addMomPayment, deleteMomPayment, bulkRemoveLots,
     giovanniOwed, totalProfit, signIn, signInWithGoogle, signOut, addPurchase, updatePurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
     reload: () => load(ownerRef.current),
   };

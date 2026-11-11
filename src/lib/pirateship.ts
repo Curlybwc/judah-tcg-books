@@ -72,3 +72,45 @@ export function psTotalsByName(rows: PsRow[]): Map<string, number> {
   }
   return m;
 }
+
+/** Pirate Ship's OTHER export: Account → Transactions — the billing
+ *  ledger (Date, Type, Description, Total, Balance). It proves label
+ *  AMOUNTS and dates but carries no order number and no recipient, so
+ *  nothing in it can match a sale by itself (DECISIONS #50, from Jen's
+ *  real file: 59 labels, $474.01, Apr–Nov 2026). The Sell flow offers
+ *  one day's amounts as chips and Judah taps each onto its order —
+ *  the file supplies amounts, a person supplies the match. */
+export interface LedgerAmount { date: string; cost: number }
+
+const LEDGER_KEYS = ["date", "type", "description", "total", "balance"];
+export function isLedgerFile(records: Record<string, string>[]): boolean {
+  if (!records.length) return false;
+  const keys = Object.keys(records[0]).map((h) => stripKey(h));
+  return LEDGER_KEYS.every((k) => keys.includes(k));
+}
+
+function ledgerDate(raw: string): string {
+  // "11/11/26 2:09 PM CST" or "11/11/2026 ..." -> "2026-11-11"
+  const m = String(raw).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (!m) return "";
+  const year = m[3].length === 2 ? `20${m[3]}` : m[3];
+  return `${year}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+}
+
+export function extractLedgerAmounts(records: Record<string, string>[]): { amounts: LedgerAmount[]; error: string | null } {
+  const headers = Object.keys(records[0] ?? {});
+  const fDate = pickField(headers, ["date"]);
+  const fType = pickField(headers, ["type"]);
+  const fTotal = pickField(headers, ["total"]);
+  if (!fDate || !fType || !fTotal) return { amounts: [], error: "That billing list is missing its Date, Type or Total column." };
+  const amounts: LedgerAmount[] = [];
+  for (const r of records) {
+    if (String(r[fType] ?? "").trim().toLowerCase() !== "label") continue;
+    const cost = Math.abs(parseFloat(String(r[fTotal] ?? "").replace(/[^0-9.]/g, "")));
+    const date = ledgerDate(String(r[fDate] ?? ""));
+    if (!date || isNaN(cost) || cost <= 0) continue;
+    amounts.push({ date, cost: Math.round(cost * 100) / 100 });
+  }
+  if (!amounts.length) return { amounts: [], error: "No label charges found in that billing list." };
+  return { amounts, error: null };
+}

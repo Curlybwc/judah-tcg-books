@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { useStore } from "../lib/store";
 import { money, saleMath } from "../lib/math";
-import { extractPsRows, orderKey, nameKey, psTotalsByOrder, psTotalsByName } from "../lib/pirateship";
+import { extractPsRows, isLedgerFile, extractLedgerAmounts, orderKey, nameKey, psTotalsByOrder, psTotalsByName } from "../lib/pirateship";
 import { BigButton, Chip, inputCls, MathRow, ScreenTitle, StepRail, ownerLabel } from "../components/ui";
 import type { View } from "../App";
 import type { Lot } from "../lib/types";
@@ -54,14 +54,44 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
   const psRef = useRef<HTMLInputElement>(null);
   const [psNote, setPsNote] = useState<{ tone: "green" | "amber" | "red"; text: string } | null>(null);
   const [psFilled, setPsFilled] = useState<Set<string>>(new Set());
+  const [shipPayer, setShipPayer] = useState<Record<string, string>>({});
+  const [ledger, setLedger] = useState<{ date: string; cost: number }[] | null>(null);
+  const [ledgerDates, setLedgerDates] = useState<string[]>([]);
+  const [ledgerDate, setLedgerDate] = useState("");
+  const [pickedChip, setPickedChip] = useState<number | null>(null);
+  const [usedChips, setUsedChips] = useState<Set<number>>(new Set());
   const [fileNote, setFileNote] = useState<string | null>(null);
   const keyRef = useRef(1000);
 
-  function handlePsFile(file: File) {
-    Papa.parse<Record<string, string>>(file, {
-      header: true, skipEmptyLines: true,
-      complete: (res) => {
-        const { rows: psRows, error } = extractPsRows(res.data);
+  async function readTableFile(file: File): Promise<Record<string, string>[] | null> {
+    if (/\.xlsx$/i.test(file.name)) {
+      try {
+        const XLSX = await import("xlsx");
+        const wb = XLSX.read(await file.arrayBuffer());
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+        return raw.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v)])));
+      } catch { return null; }
+    }
+    return new Promise((resolve) => {
+      Papa.parse<Record<string, string>>(file, { header: true, skipEmptyLines: true, complete: (res) => resolve(res.data), error: () => resolve(null) });
+    });
+  }
+
+  async function handlePsFile(file: File) {
+    const data = await readTableFile(file);
+    if (!data) { setPsNote({ tone: "red", text: "Couldn't read that file." }); return; }
+    if (isLedgerFile(data)) {
+      const { amounts, error } = extractLedgerAmounts(data);
+      if (error) { setPsNote({ tone: "red", text: error }); return; }
+      const dates = [...new Set(amounts.map((a) => a.date))].sort().reverse();
+      setLedger(amounts); setLedgerDates(dates); setLedgerDate(dates[0] ?? "");
+      setUsedChips(new Set()); setPickedChip(null);
+      setPsNote({ tone: "amber", text: "That's Pirate Ship's billing list — it has the label amounts but doesn't say which order each label was for. Pick a day below, tap an amount, then tap which order it belongs to. They all count as Mom-paid (her bank account)." });
+      return;
+    }
+    {
+        const { rows: psRows, error } = extractPsRows(data);
         if (error) { setPsNote({ tone: "red", text: error }); return; }
         const byOrder = psTotalsByOrder(psRows);
         const byName = psTotalsByName(psRows);
@@ -80,11 +110,10 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
         const stray = psRows.filter((r) => r.orderId && !orderKeys.has(orderKey(r.orderId))).length;
         setShipPaid(next);
         setPsFilled(filled);
+        setShipPayer((prev) => { const np = { ...prev }; filled.forEach((oid) => { np[oid] = "mom"; }); return np; });
         if (!filled.size) setPsNote({ tone: "amber", text: "None of the Pirate Ship labels matched these orders. Check the export includes the Order ID column — or just type the amounts below." });
         else setPsNote({ tone: stray ? "amber" : "green", text: `🚢 Pirate Ship filled in ${filled.size} of ${orders.length} orders — $${matchedCost.toFixed(2)} of postage.${stray ? ` ${stray} label${stray === 1 ? "" : "s"} in the file didn't match an order here.` : ""} Check the numbers below; you can change any of them.` });
-      },
-      error: () => setPsNote({ tone: "red", text: "Couldn't read that file." }),
-    });
+    }
   }
 
   const stockLots = useMemo(() => lots.filter((l) => l.qty_on_hand > 0), [lots]);
@@ -221,7 +250,7 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
     const payload = rows.flatMap((r, i) => {
       const c = computed[i];
       if (!c) return []; // unmatched or duplicate — skipped
-      return [{ lot: c.lot, qty: r.qty, unitItemPrice: r.unitPrice, shippingCharged: r.shippingCharged, shippingPaid: c.firstInOrder ? parseFloat(shipPaid[r.orderId]) || 0 : 0, orderId: r.orderId, soldOn: r.soldOn, orderGroupFirst: c.firstInOrder }];
+      return [{ lot: c.lot, qty: r.qty, unitItemPrice: r.unitPrice, shippingCharged: r.shippingCharged, shippingPaid: c.firstInOrder ? parseFloat(shipPaid[r.orderId]) || 0 : 0, shipPaidBy: c.firstInOrder ? (shipPayer[r.orderId] ?? "mom") : "judah", orderId: r.orderId, soldOn: r.soldOn, orderGroupFirst: c.firstInOrder }];
     });
     await recordSales(payload);
     const fronted = computed.reduce((sum, c) => (c && c.firstInOrder && c.lot.owner_kind === "giovanni" ? sum + (parseFloat(shipPaid[c.row.orderId]) || 0) : sum), 0);
@@ -247,7 +276,7 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
           <BigButton onClick={() => fileRef.current?.click()}>📤 Upload the orders file</BigButton>
           <p className="text-slate-400 text-sm mt-3">🚢 Have a Pirate Ship file too? It comes later — on the <b className="text-slate-200">Shipping you paid</b> step, after you match the sales.</p>
           {parseError && <p className="mt-3 rounded-xl bg-rose-900/50 border border-rose-700 text-rose-200 px-4 py-3">{parseError}</p>}
-          <p className="text-slate-500 text-sm mt-4">No file handy? <a className="underline text-slate-300" href="/sample-orders.csv" download>Download the sample orders file</a> and upload it here to practice.</p>
+          <p className="text-slate-500 text-sm mt-4">No file handy? <a className="underline text-slate-300" href={`${import.meta.env.BASE_URL}sample-orders.csv`} download>Download the sample orders file</a> and upload it here to practice.</p>
         </div>
       )}
 
@@ -304,16 +333,46 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
           <p className="text-slate-300 mb-3">What did YOU pay to ship each order? Tap a preset or type the label amount.</p>
           <div className="rounded-2xl bg-slate-800 border border-sky-700/60 p-4 mb-4">
             <p className="text-white font-bold mb-1">🚢 Bought your labels on Pirate Ship?</p>
-            <p className="text-slate-400 text-sm mb-3">Export your shipments there (Ship → Shipments grid → Export, with the Order ID and cost columns on) and drop the file here — the label cost for each order fills itself in.</p>
-            <input ref={psRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePsFile(f); e.target.value = ""; }} />
+            <p className="text-slate-400 text-sm mb-3">Two files work. The <b className="text-slate-200">Shipments</b> export (Ship → shipments list → Export, Order ID and cost columns on) matches each order by itself. The <b className="text-slate-200">Transactions</b> list (Account → Transactions, the .xlsx) only has amounts — you pick a day and tap each amount onto its order. Either way the labels count as Mom-paid: they come out of her bank account.</p>
+            <input ref={psRef} type="file" accept=".csv,.xlsx,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void handlePsFile(f); e.target.value = ""; }} />
             <button onClick={() => psRef.current?.click()} className="rounded-xl bg-sky-600 text-white px-4 py-2.5 font-bold">📤 Fill from a Pirate Ship export</button>
             <a className="ml-3 underline text-slate-400 text-sm" href={`${import.meta.env.BASE_URL}sample-pirateship.csv`} download>Sample file</a>
             {psNote && <p className={`mt-3 rounded-xl px-3 py-2 text-sm ${psNote.tone === "green" ? "bg-emerald-900/50 text-emerald-200" : psNote.tone === "amber" ? "bg-amber-900/50 text-amber-200" : "bg-rose-900/50 text-rose-200"}`}>{psNote.text}</p>}
+            {ledger && (
+              <div className="mt-3">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <span className="text-slate-300 text-sm">Labels bought on</span>
+                  <select className="rounded-lg bg-slate-900 border border-slate-700 text-slate-100 px-2 py-1.5" value={ledgerDate} onChange={(e) => { setLedgerDate(e.target.value); setPickedChip(null); }}>
+                    {ledgerDates.map((d) => (<option key={d} value={d}>{new Date(`${d}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</option>))}
+                  </select>
+                  <span className="text-slate-400 text-sm">{ledger.filter((a) => a.date === ledgerDate).length} labels · {money(ledger.filter((a) => a.date === ledgerDate).reduce((x, a) => x + a.cost, 0))}</span>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {ledger.map((a, ci) => a.date === ledgerDate && (
+                    <button key={ci} disabled={usedChips.has(ci)} onClick={() => setPickedChip(pickedChip === ci ? null : ci)}
+                      className={`rounded-full px-3 py-1.5 text-sm font-bold ${usedChips.has(ci) ? "bg-slate-900 text-slate-600 line-through" : pickedChip === ci ? "bg-yellow-400 text-slate-900" : "bg-slate-700 text-slate-200"}`}>
+                      {money(a.cost)}
+                    </button>
+                  ))}
+                </div>
+                {pickedChip != null && <p className="text-sky-300 text-sm mt-2">Now tap “Put it here” on the order that label belongs to.</p>}
+              </div>
+            )}
           </div>
           <div className="grid gap-3 mb-4">
             {orders.map((oid) => (
               <div key={oid} className="rounded-2xl bg-slate-800 border border-slate-700 p-4">
                 <p className="text-white font-bold mb-2">Order {oid}{psFilled.has(oid) && <span className="ml-2 align-middle"><Chip tone="green">🚢 from Pirate Ship</Chip></span>}</p>
+                {pickedChip != null && ledger && (
+                  <button onClick={() => { setShipPaid({ ...shipPaid, [oid]: ledger[pickedChip].cost.toFixed(2) }); setShipPayer({ ...shipPayer, [oid]: "mom" }); const u = new Set(usedChips); u.add(pickedChip); setUsedChips(u); setPickedChip(null); }} className="mb-2 rounded-xl bg-yellow-400 text-slate-900 px-3 py-2 font-black text-sm">⬇ Put it here — {money(ledger[pickedChip].cost)}</button>
+                )}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-slate-400 text-sm">Who paid?</span>
+                  {([["mom", "Mom"], ["judah", "Judah"]] as const).map(([v, label]) => (
+                    <button key={v} onClick={() => setShipPayer({ ...shipPayer, [oid]: v })} className={`rounded-full px-3 py-1.5 text-sm font-bold ${(shipPayer[oid] ?? "mom") === v ? "bg-sky-500 text-white" : "bg-slate-700 text-slate-200"}`}>{label}</button>
+                  ))}
+                  <span className="text-slate-500 text-xs">Mom-paid postage goes on what Judah owes her.</span>
+                </div>
                 <div className="flex gap-2 mb-2">
                   {[["Stamp $0.78", "0.78"], ["Envelope $1.50", "1.50"], ["Free $0", "0"]].map(([label, v]) => (
                     <button key={v} onClick={() => setShipPaid({ ...shipPaid, [oid]: v })} className={`rounded-full px-3 py-1.5 text-sm font-bold ${shipPaid[oid] === v ? "bg-yellow-400 text-slate-900" : "bg-slate-700 text-slate-200"}`}>{label}</button>

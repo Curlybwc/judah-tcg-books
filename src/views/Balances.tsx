@@ -105,7 +105,7 @@ function LoanForm({ initial, onSave, onCancel }: {
 export default function Balances({ go }: { go: (v: View) => void }) {
   const { loans, loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment,
     giovanniOwed, giovanniShare, giovanniFronted, giovanniOwnNet, payments, addGiovanniPayment, deleteGiovanniPayment,
-    momOwed, momPayments, addMomPayment, deleteMomPayment, purchases } = useStore();
+    momOwed, momShipOwed, momPayments, addMomPayment, deleteMomPayment, purchases } = useStore();
   const [mode, setMode] = useState<"list" | "new" | "detail" | "edit">("list");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState("");
@@ -249,6 +249,7 @@ export default function Balances({ go }: { go: (v: View) => void }) {
         <p className="text-sky-300 font-semibold text-sm">You owe Mom</p>
         <p className="text-4xl font-black text-white">{money(momOwed)}</p>
         <p className="text-slate-400 text-sm">The full cost of everything she paid for, plus her 50% of the profit when those things sell (profit = what you got for it, after fees and shipping, minus its cost). You've paid her back {money(momRepaid)} so far.</p>
+        {momShipOwed > 0 && <p className="text-slate-400 text-sm mt-1">Includes {money(momShipOwed)} of postage that came out of her bank account (the Pirate Ship labels).</p>}
         <div className="flex gap-2 mt-3">
           <div className="flex-1"><MoneyInput value={momAmount} onChange={setMomAmount} placeholder="0.00" /></div>
           <button
