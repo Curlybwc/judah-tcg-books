@@ -8,6 +8,7 @@ export interface Product {
   barcode: string | null;
   product_type: "sealed" | "single";
   market_price: number | null;
+  market_price_at?: string | null; // when market_price was last checked (DECISIONS #35)
   image_url?: string | null; // his own photo (Supabase Storage) or the online product image
   created_at?: string;
 }

@@ -404,3 +404,18 @@ denied outright, deleting a loan cascades its payments). The Home
 button's subtitle carries the live total owed. SAME PASS: 🔍 search on
 the stock screen — filters by product name or barcode, in both the
 normal view and bulk-edit (select-all respects the search).
+
+#35 — Market prices beside the stock, with the date they were checked
+(Jen, 2026-11-11: "a way to look up prices of the inventory I have…
+market price to sit next to the inventory… the last time I looked it
+up, showing as of what date?"). Migration 015 adds products.
+market_price_at. The stock screen now shows, under every product:
+"Market $X each · N on hand ≈ $total · as of <date>" — or "on file,
+never checked" for the old seeded prices, which keep their SAMPLE chip
+until a real lookup replaces them. Two ways to check: 💲 Look up price
+on each product, and 💲 Look up all market prices at the top (skips
+zero-stock products; the provider's 12-hour cache keeps repeat runs
+inside the free quota). store.refreshMarketPrice saves price + stamp
+together and the screen labels SAMPLE honestly whenever the provider
+answered with sample data (no key on the device yet — the TCG API key
+step in Account is still Jen's to do).

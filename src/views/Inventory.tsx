@@ -10,7 +10,7 @@ import { useRef } from "react";
 import type { View } from "../App";
 
 export default function Inventory({ go }: { go: (v: View) => void }) {
-  const { lots, products, sales, undoPurchaseForLot, adjustStock, bulkRemoveLots, setProductImage, uploadProductPhoto } = useStore();
+  const { lots, products, sales, undoPurchaseForLot, adjustStock, bulkRemoveLots, setProductImage, uploadProductPhoto, refreshMarketPrice } = useStore();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [adjustId, setAdjustId] = useState<string | null>(null);
   const [editBuyId, setEditBuyId] = useState<string | null>(null);
@@ -23,6 +23,10 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
   const [busy, setBusy] = useState(false);
   const [photoMsg, setPhotoMsg] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [priceBusy, setPriceBusy] = useState(false);
+  const [priceMsg, setPriceMsg] = useState<string | null>(null);
+  const [allProgress, setAllProgress] = useState<string | null>(null);
+  const [sessionSample, setSessionSample] = useState<Record<string, boolean>>({});
   const [photoBusy, setPhotoBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const pendingPhotoProduct = useRef<string | null>(null);
@@ -41,6 +45,31 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     const ok = await uploadProductPhoto(pid, f);
     setPhotoBusy(false);
     setPhotoMsg(ok ? "Photo saved ✓" : "That photo didn't save — try again.");
+  }
+
+  async function lookupOne(g: { productId: string | null; name: string }) {
+    if (!g.productId || priceBusy) return;
+    setPriceBusy(true); setPriceMsg(null);
+    const r = await refreshMarketPrice(g.productId, g.name);
+    setPriceBusy(false);
+    if (r) {
+      setSessionSample((m) => ({ ...m, [g.productId!]: r.isSample }));
+      setPriceMsg(r.isSample ? `${g.name}: ${r.price} — SAMPLE price (add the price key in Account for real market prices).` : `${g.name}: market price ${r.price} ✓`);
+    }
+  }
+
+  async function lookupAll() {
+    const targets = groups.filter((g) => g.productId && g.lots.reduce((a, l) => a + l.qty_on_hand, 0) > 0);
+    if (!targets.length || priceBusy) return;
+    setPriceBusy(true); setPriceMsg(null);
+    let done = 0; let anySample = false;
+    for (const g of targets) {
+      setAllProgress(`💲 Checking prices… ${done + 1} of ${targets.length}`);
+      const r = await refreshMarketPrice(g.productId!, g.name);
+      if (r) { setSessionSample((m) => ({ ...m, [g.productId!]: r.isSample })); if (r.isSample) anySample = true; done++; }
+    }
+    setAllProgress(null); setPriceBusy(false);
+    setPriceMsg(`Market prices updated for ${done} product${done === 1 ? "" : "s"}${anySample ? " — SAMPLE prices (add the price key in Account for real ones)" : ""}. ✓`);
   }
 
   async function findOnlinePhoto(productId: string, name: string) {
@@ -78,12 +107,12 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     setSelected(new Set());
   }
   const groups = useMemo(() => {
-    const map = new Map<string, { name: string; market: number | null; productId: string | null; imageUrl: string | null; lots: typeof lots }>();
+    const map = new Map<string, { name: string; market: number | null; marketAt: string | null; productId: string | null; imageUrl: string | null; lots: typeof lots }>();
     for (const lot of lots) {
       if (lot.qty_on_hand <= 0) continue;
       const p = products.find((x) => x.id === lot.product_id);
       const name = p?.name ?? "Product";
-      if (!map.has(name)) map.set(name, { name, market: p?.market_price ?? null, productId: p?.id ?? null, imageUrl: p?.image_url ?? null, lots: [] });
+      if (!map.has(name)) map.set(name, { name, market: p?.market_price ?? null, marketAt: p?.market_price_at ?? null, productId: p?.id ?? null, imageUrl: p?.image_url ?? null, lots: [] });
       map.get(name)!.lots.push(lot);
     }
     return [...map.values()];
@@ -150,6 +179,12 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
       )}
 
       {!editMode && editMsg && <p className="text-emerald-300 text-sm font-semibold mb-3">{editMsg}</p>}
+      {!editMode && (
+        <button onClick={() => void lookupAll()} disabled={priceBusy} className="w-full rounded-2xl bg-slate-800 border border-slate-700 py-3 font-bold text-slate-200 mb-3 disabled:opacity-50">
+          {allProgress ?? "💲 Look up all market prices"}
+        </button>
+      )}
+      {!editMode && priceMsg && <p className="text-emerald-300 text-sm font-semibold mb-3">{priceMsg}</p>}
       {!editMode && groups.length === 0 && (
         <div className="rounded-2xl bg-slate-800 border border-slate-700 p-5 text-slate-300">
           Nothing for sale yet. Tap “I Bought Product” when you buy something to sell.
@@ -175,11 +210,23 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       <button disabled={photoBusy} onClick={() => pickPhoto(g.productId!)} className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200 disabled:opacity-50">{g.imageUrl ? "📷 Change photo" : "📷 Add your photo"}</button>
                       {!g.imageUrl && <button disabled={photoBusy} onClick={() => void findOnlinePhoto(g.productId!, g.name)} className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200 disabled:opacity-50">🌐 Find online photo</button>}
+                      <button disabled={priceBusy} onClick={() => void lookupOne(g)} className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200 disabled:opacity-50">💲 Look up price</button>
                     </div>
                   )}
                 </div>
               </div>
-              {g.market !== null && <p className="text-slate-400 text-sm mt-1">Selling for about {money(g.market)} each <Chip tone="amber">SAMPLE price</Chip></p>}
+              {g.market !== null ? (
+                <p className="text-slate-400 text-sm mt-1">
+                  Market <span className="text-slate-100 font-bold">{money(g.market)}</span> each
+                  {units > 0 && <> · {units} on hand ≈ <span className="text-slate-100 font-semibold">{money(g.market * units)}</span></>}
+                  {g.marketAt
+                    ? <> · as of {new Date(g.marketAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</>
+                    : <> · <span className="text-amber-300">on file, never checked</span></>}
+                  {(sessionSample[g.productId ?? ""] ?? !g.marketAt) && <> <Chip tone="amber">SAMPLE price</Chip></>}
+                </p>
+              ) : (
+                <p className="text-slate-500 text-sm mt-1">No market price yet — tap 💲 Look up price.</p>
+              )}
               <div className="mt-2 grid gap-1.5">
                 {g.lots.map((l) => {
                   const soldFrom = sales.some((s) => s.lot_id === l.id);
