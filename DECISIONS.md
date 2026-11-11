@@ -439,3 +439,11 @@ Giovanni's TCGplayer sales is Giovanni's cost — frontedShipping() in
 math.ts adds it to what Giovanni owes (store giovanniOwed, hub
 breakdown line, and the Sell flow's done screen all include it).
 Mom/split shipping still nets through profit share, unchanged.
+
+#37 — "What I Have For Sale" is now "Inventory", and you can add stock
+from it (Jen, 2026-11-11). Home button and screen title renamed; the
+Inventory screen opens with a "＋ Add inventory — I bought product"
+button that runs the normal Buy flow, whose done screen already
+returns here ("See inventory"). Search, price lookups, photos, edit
+buy, and bulk edit were already on this screen — it is now the single
+home for stock, not just a viewing list.

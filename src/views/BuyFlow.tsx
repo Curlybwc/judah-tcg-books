@@ -210,7 +210,7 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
           <p className="text-white text-xl font-bold">Saved!</p>
           <p className="text-slate-300 mt-2">{q} × {name} is now in your for-sale stock at {savedBasis !== null ? money(savedBasis) : ""} cost each.</p>
           <div className="grid gap-3 mt-6">
-            <BigButton onClick={() => go("inventory")}>See what I have for sale</BigButton>
+            <BigButton onClick={() => go("inventory")}>See inventory</BigButton>
             <BigButton color="slate" onClick={() => go("home")}>Back to start</BigButton>
           </div>
         </div>

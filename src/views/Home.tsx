@@ -63,7 +63,7 @@ export default function Home({ go }: { go: (v: View) => void }) {
         <JobButton emoji="📷" label="Scan for Price" sub="What is this worth right now?" onClick={() => go("scan")} />
         <JobButton emoji="🤝" label="Who Owes Who" sub={(() => { const youOwe = totalOwed + momOwed; const parts: string[] = []; if (giovanniOwed > 0) parts.push(`Giovanni owes you ${money(giovanniOwed)}`); if (youOwe > 0) parts.push(`You owe ${money(youOwe)}`); return parts.length ? parts.join(" · ") : "Giovanni, Mom & loans — every balance in one place"; })()} onClick={() => go("balances")} />
         <JobButton emoji="📈" label="Check My Profit" sub="Week, month, and all time" onClick={() => go("profit")} />
-        <JobButton emoji="📦" label="What I Have For Sale" sub="Everything listed and ready to sell" onClick={() => go("inventory")} />
+        <JobButton emoji="📦" label="Inventory" sub="Everything you have in stock — add, search, and edit it here" onClick={() => go("inventory")} />
       </div>
 
       <button onClick={() => go("bank")} className="w-full mt-6 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-300 font-semibold">🏦 Bank (coming soon)</button>

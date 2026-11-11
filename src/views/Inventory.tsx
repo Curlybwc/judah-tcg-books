@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../lib/store";
 import { money } from "../lib/math";
-import { Chip, Field, inputCls, MoneyInput, ScreenTitle, ownerLabel } from "../components/ui";
+import { BigButton, Chip, Field, inputCls, MoneyInput, ScreenTitle, ownerLabel } from "../components/ui";
 import BarcodeScanner from "../components/BarcodeScanner";
 import { catalogLookup, normalizeBarcode } from "../lib/catalog";
 import type { Lot, OwnerKind, PaidVia } from "../lib/types";
@@ -130,7 +130,10 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
 
   return (
     <div>
-      <ScreenTitle title="📦 What I Have For Sale" sub={`${totalUnits} items ready to sell. (Your personal collection stays in Collectr — this is only for-sale stock.)`} />
+      <ScreenTitle title="📦 Inventory" sub={`${totalUnits} items in stock. (Your personal collection stays in Collectr — this is only for-sale stock.)`} />
+      <div className="mb-3">
+        <BigButton onClick={() => go("buy")}>＋ Add inventory — I bought product</BigButton>
+      </div>
       <input className={`${inputCls} mb-4`} placeholder="🔍 Search your stock — type a name or barcode…" value={query} onChange={(e) => setQuery(e.target.value)} />
       {q && <p className="text-slate-400 text-sm mb-3">{visibleGroups.length} product{visibleGroups.length === 1 ? "" : "s"} match "{query}".</p>}
       <button onClick={() => { setEditMode(!editMode); setSelected(new Set()); setEditMsg(null); setConfirmRemove(false); }}
@@ -187,7 +190,7 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
       {!editMode && priceMsg && <p className="text-emerald-300 text-sm font-semibold mb-3">{priceMsg}</p>}
       {!editMode && groups.length === 0 && (
         <div className="rounded-2xl bg-slate-800 border border-slate-700 p-5 text-slate-300">
-          Nothing for sale yet. Tap “I Bought Product” when you buy something to sell.
+          Nothing in inventory yet. Tap “＋ Add inventory” when you buy something to sell.
         </div>
       )}
       {!editMode && (
