@@ -78,6 +78,7 @@ interface Store {
   giovanniOwed: number;
   totalProfit: number;
   signIn: (email: string, password: string) => Promise<string | null>;
+  signInWithGoogle: () => Promise<string | null>;
   signOut: () => Promise<void>;
   addPurchase: (input: { name: string; barcode?: string; qty: number; unitPrice: number; taxRate: number; shippingIn: number; ownerKind: "mine" | "giovanni" | "split" | "mom_payback" | "mom_split"; judahPct: number; paidVia: "USAA" | "Cash" | "Other"; showId?: string }) => Promise<Purchase>;
   recordSales: (rows: { lot: Lot; qty: number; unitItemPrice: number; shippingCharged: number; shippingPaid: number; orderId: string | null; soldOn: string; orderGroupFirst?: boolean }[]) => Promise<Sale[]>;
@@ -209,6 +210,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     else setNotice(`${failed.length} item${failed.length === 1 ? "" : "s"} still waiting to sync — check your signal and tap sync again.`);
   }, [runOps, load]);
 
+  const signInWithGoogle = useCallback(async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin + window.location.pathname },
+    });
+    return error ? error.message : null;
+  }, []);
   const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return error ? error.message : null;
@@ -558,7 +566,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
     shows: data.shows, activeShow, pendingCount: outbox.length, syncNow, startShow, closeShow, recordQuickSale,
     momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, setProductImage, uploadProductPhoto, momOwed, addMomPayment, deleteMomPayment, bulkRemoveLots,
-    giovanniOwed, totalProfit, signIn, signOut, addPurchase, updatePurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
+    giovanniOwed, totalProfit, signIn, signInWithGoogle, signOut, addPurchase, updatePurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
     reload: () => load(ownerRef.current),
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

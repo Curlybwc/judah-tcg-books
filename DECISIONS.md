@@ -307,3 +307,20 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     owners were unaffected; demo mode (today's mode) would have failed every
     edit. Granted + policy added, sample-owner-scoped like its siblings;
     verified as anon incl. a wrong-owner update touching 0 rows.
+
+31. **Sign in with Google (Jen, 2026-11-10).** Jen ruled the demo label ends
+    via a real sign-in and chose Google over email/password ("can we sign in
+    with google" → "Set up Sign in with Google"). Shape: the Account screen
+    leads with a **Sign in with Google** button (Supabase OAuth; redirectTo =
+    the app URL; the shell already picks the session up on return). The
+    one-time provider setup is split the only way it can be: the OAuth client
+    is created in Jen's Google Cloud Console (her account owns it) with the
+    Supabase callback as its only redirect URI, and Maven enables the Google
+    provider + site/redirect URLs in Supabase via the Management API
+    (sb_auth_config.py, added to the custom.supabase connector bin — stdin
+    carries the client secret; it is never filed, logged, or shown). Consent
+    screen publishes to production (basic identity scopes only) so any
+    Google account in the family can sign in. Once Judah signs in, his rows
+    migrate from the sample owner to his uid (his books already hold 12
+    purchases incl. Jen's entries — see #30-era data), and migration 002's
+    demo-write policies can finally be dropped.
