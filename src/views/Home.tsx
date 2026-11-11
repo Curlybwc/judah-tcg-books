@@ -30,6 +30,16 @@ export default function Home({ go }: { go: (v: View) => void }) {
       </div>
 
 
+      {userEmail ? (
+        <button onClick={() => go("account")} className="w-full mb-4 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-semibold">
+          👤 Account — sets, invites & sign-in
+        </button>
+      ) : (
+        <button onClick={() => go("account")} className="w-full mb-4 rounded-2xl bg-yellow-400 text-slate-900 py-3.5 font-black">
+          🔑 Sign In — get your real books
+        </button>
+      )}
+
       {pendingCount > 0 && (
         <button onClick={() => void syncNow()} className="w-full mb-4 rounded-2xl bg-sky-600 text-white py-3.5 font-bold">
           ☁️ {pendingCount} item{pendingCount === 1 ? "" : "s"} waiting to sync — tap to sync now
@@ -47,10 +57,7 @@ export default function Home({ go }: { go: (v: View) => void }) {
         <JobButton emoji="📦" label="What I Have For Sale" sub="Everything listed and ready to sell" onClick={() => go("inventory")} />
       </div>
 
-      <div className="mt-6 flex gap-3">
-        <button onClick={() => go("bank")} className="flex-1 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-300 font-semibold">🏦 Bank (coming soon)</button>
-        <button onClick={() => go("account")} className="flex-1 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-300 font-semibold">{userEmail ? "👤 Account" : "🔑 Sign In"}</button>
-      </div>
+      <button onClick={() => go("bank")} className="w-full mt-6 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-300 font-semibold">🏦 Bank (coming soon)</button>
       <button onClick={() => void onCheckUpdates()} disabled={checking} className="w-full mt-3 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-300 font-semibold disabled:opacity-50">
         {checking ? "🔄 Checking for updates…" : "🔄 Check for updates"}
       </button>
