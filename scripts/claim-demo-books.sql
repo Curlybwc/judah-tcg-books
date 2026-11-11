@@ -1,3 +1,9 @@
+-- USED 2026-11-10 (with a correction): Maven ran this as written and it
+-- created a NEW set even though Jen had already created her own ("Bahr
+-- TCG") from the gate screen minutes earlier. The inventory was re-tagged
+-- into HER set the same evening and the script-created set deleted.
+-- LESSON, if anything like this runs again: check for a set the owner
+-- already created FIRST and re-tag into that one.
 -- Claim the demo books as Jen's first shared set (DECISIONS #32).
 -- Run ONCE, after Jen's first Google sign-in creates her auth user.
 -- 1) Find her uid:  select id, email from auth.users order by created_at;
