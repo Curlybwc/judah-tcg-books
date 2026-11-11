@@ -6,14 +6,15 @@ import { BigButton, Field, inputCls, ScreenTitle } from "../components/ui";
 import SetsSection from "./Sets";
 
 function PriceKeySection() {
+  const { priceKeyInBooks, savePriceKey } = useStore();
   const [key, setKey] = useState(getPriceApiKey());
   const [saved, setSaved] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testMsg, setTestMsg] = useState<string | null>(null);
-  const hasKey = !!getPriceApiKey();
+  const hasKey = !!getPriceApiKey() || priceKeyInBooks;
 
-  function save() {
-    setPriceApiKey(key);
+  async function save() {
+    await savePriceKey(key);
     setSaved(true);
     setTestMsg(null);
   }
@@ -33,15 +34,17 @@ function PriceKeySection() {
     <div className="mt-8 border-t border-slate-700 pt-5">
       <h2 className="text-lg font-black mb-1">💲 Real prices</h2>
       <p className="text-slate-400 text-sm mb-3">
-        {hasKey
-          ? "A price key is saved on this device, so Price Scanner and the show-buy helper use real market prices (TCG API). Lookups cache for half a day — the free key covers 100 a day."
-          : "Right now price lookups show SAMPLE prices. Paste the free TCG API key (starts with tcg_live_) and lookups become real market prices on this device."}
+        {priceKeyInBooks
+          ? "The price key is saved in your shared books, so Price Scanner and Inventory use real market prices (TCG API) on every device in this set. The free key covers 100 lookups a day."
+          : hasKey
+            ? "A price key is saved on this device only. Save it again here while signed in and it goes into your shared books too, so it works on every device."
+            : "Right now price lookups show SAMPLE prices. Paste the free TCG API key (starts with tcg_live_) and save — while you're signed in it goes into your shared books and works on every device in the set."}
       </p>
       <Field label="TCG API key">
-        <input className={inputCls} type="password" autoComplete="off" value={key} onChange={(e) => { setKey(e.target.value); setSaved(false); }} placeholder="tcg_live_…" />
+        <input className={inputCls} type="password" autoComplete="off" value={key} onChange={(e) => { setKey(e.target.value); setSaved(false); }} placeholder={priceKeyInBooks && !getPriceApiKey() ? "Key is in your shared books — type a new one to replace it" : "tcg_live_…"} />
       </Field>
       <div className="flex gap-3">
-        <button onClick={save} className="flex-1 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-semibold">{saved ? "✓ Saved" : "Save key"}</button>
+        <button onClick={() => void save()} className="flex-1 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-semibold">{saved ? "✓ Saved" : "Save key"}</button>
         <button onClick={() => void test()} disabled={testing || !key.trim()} className="flex-1 rounded-2xl bg-yellow-400 text-slate-900 py-3 font-black disabled:opacity-40">{testing ? "Testing…" : "Test it"}</button>
       </div>
       {testMsg && <p className="text-slate-300 text-sm mt-3">{testMsg}</p>}

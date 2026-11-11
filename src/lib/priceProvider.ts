@@ -71,6 +71,26 @@ const SAMPLE = new SamplePriceProvider();
 export function getPriceApiKey(): string {
   try { return localStorage.getItem(KEY_LS) ?? ""; } catch { return ""; }
 }
+// The key can also live in the shared books (book_settings, DECISIONS #46)
+// so every device in the set uses it. Resolution: this device's saved key
+// first, then the books' key for the set this device has open.
+let sharedKeyCache: { setId: string; key: string } | null = null;
+export function clearSharedKeyCache(): void { sharedKeyCache = null; }
+export async function resolvePriceApiKey(): Promise<string> {
+  const local = getPriceApiKey();
+  if (local) return local;
+  try {
+    const setId = localStorage.getItem("jtb-current-set");
+    if (!setId) return "";
+    if (sharedKeyCache && sharedKeyCache.setId === setId) return sharedKeyCache.key;
+    const { supabase } = await import("./supabase");
+    const { data } = await supabase.from("book_settings").select("tcg_api_key").eq("owner_id", setId).maybeSingle();
+    const key = ((data as { tcg_api_key?: string | null } | null)?.tcg_api_key ?? "").trim();
+    sharedKeyCache = { setId, key };
+    return key;
+  } catch { return ""; }
+}
+
 export function setPriceApiKey(k: string): void {
   try {
     if (k.trim()) localStorage.setItem(KEY_LS, k.trim());
@@ -144,7 +164,7 @@ interface TcgApiItem { name?: string; market_price?: number | null; image_url?: 
 
 class TcgApiPriceProvider implements PriceProvider {
   async lookup(name: string, opts?: { fresh?: boolean }): Promise<PriceResult> {
-    const key = getPriceApiKey();
+    const key = await resolvePriceApiKey();
     if (!key) return SAMPLE.lookup(name);
     // Prices change daily: an explicit Update/Search tap passes fresh and
     // skips the 12h cache (DECISIONS #45). Incidental lookups still cache.
@@ -232,7 +252,7 @@ interface IdentifyCandidate {
 }
 
 export async function identifyByPhoto(dataUrl: string): Promise<IdentifyOutcome> {
-  const key = getPriceApiKey();
+  const key = await resolvePriceApiKey();
   if (!key) return { status: "error", message: "Add the price key first (Account → Real prices) — photo scans use the same key.", candidates: [] };
   try {
     const { supabase } = await import("./supabase");

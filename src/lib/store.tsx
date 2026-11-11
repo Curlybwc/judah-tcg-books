@@ -81,6 +81,8 @@ interface Store {
   addLoanPayment: (loanId: string, amount: number, paidOn: string, note: string) => Promise<void>;
   deleteLoanPayment: (id: string) => Promise<void>;
   refreshMarketPrice: (productId: string, name: string, fresh?: boolean) => Promise<PriceResult | null>;
+  priceKeyInBooks: boolean;
+  savePriceKey: (key: string) => Promise<void>;
   applyIdentified: (productId: string, name: string, price: number) => Promise<boolean>;
   addExpense: (amount: number, spentOn: string, category: ExpenseCategory, note: string) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
@@ -136,6 +138,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [sets, setSets] = useState<BookSet[]>([]);
   const setsRef = useRef<BookSet[]>([]);
   useEffect(() => { setsRef.current = sets; }, [sets]);
+
   const [members, setMembers] = useState<BookMember[]>([]);
   const [currentSetId, setCurrentSetId] = useState<string | null>(SAMPLE_OWNER_ID);
   const [ownerId, setOwnerId] = useState<string>(SAMPLE_OWNER_ID);
@@ -175,6 +178,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setData(loadLocal()); setRemote(false); remoteRef.current = false;
     }
     setReady(true);
+  }, []);
+
+  const [priceKeyInBooks, setPriceKeyInBooks] = useState(false);
+  useEffect(() => {
+    if (!userEmail || !currentSetId || currentSetId === SAMPLE_OWNER_ID) { setPriceKeyInBooks(false); return; }
+    let live = true;
+    void supabase.from("book_settings").select("tcg_api_key").eq("owner_id", currentSetId).maybeSingle()
+      .then(({ data }) => { if (live) setPriceKeyInBooks(!!(data as { tcg_api_key?: string | null } | null)?.tcg_api_key); });
+    return () => { live = false; };
+  }, [userEmail, currentSetId]);
+
+  const savePriceKey: Store["savePriceKey"] = useCallback(async (key) => {
+    const { setPriceApiKey, clearSharedKeyCache } = await import("./priceProvider");
+    setPriceApiKey(key);
+    clearSharedKeyCache();
+    const setId = ownerRef.current;
+    if (remoteRef.current && setId && setId !== SAMPLE_OWNER_ID) {
+      try {
+        const r = await supabase.from("book_settings").upsert({ owner_id: setId, tcg_api_key: key.trim() || null, updated_at: new Date().toISOString() } as never);
+        if (r.error) throw r.error;
+        setPriceKeyInBooks(!!key.trim());
+      } catch { setNotice("The key saved on this device, but not into the shared books — check your connection."); }
+    }
   }, []);
 
   // Resolve who is looking and which set of books they are looking at
@@ -781,7 +807,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     ready, remote, notice, userEmail, userId, sets, members, currentSetId, switchSet, createSet, joinSet, resetJoinCode, removeMember, leaveSet, ownerId,
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
     shows: data.shows, activeShow, pendingCount: outbox.length, syncNow, startShow, closeShow, recordQuickSale,
-    momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, loans: data.loans, loanPayments: data.loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment, refreshMarketPrice, applyIdentified, setProductImage, uploadProductPhoto, momOwed, giovanniShare, giovanniFronted, giovanniOwnNet, addMomPayment, deleteMomPayment, bulkRemoveLots,
+    momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, loans: data.loans, loanPayments: data.loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment, refreshMarketPrice, applyIdentified, priceKeyInBooks, savePriceKey, setProductImage, uploadProductPhoto, momOwed, giovanniShare, giovanniFronted, giovanniOwnNet, addMomPayment, deleteMomPayment, bulkRemoveLots,
     giovanniOwed, totalProfit, signIn, signInWithGoogle, signOut, addPurchase, updatePurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
     reload: () => load(ownerRef.current),
   };

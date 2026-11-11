@@ -541,3 +541,26 @@ the very top of Inventory, "💲 Update prices," refreshes every in-stock
 product (the old mid-page Look-up-all button is gone); a run searches
 each product NAME once — duplicates and extra lots reuse the first
 result instead of re-searching.
+#46 — The price key lives in the shared books (Jen approved, 2026-11-11).
+Migration 018 book_settings (owner_id = set, tcg_api_key) with
+member-only RLS, no anon access — verified as caller: Jen upserts/reads,
+a stranger sees 0 rows, anon is denied outright. The provider resolves
+the key as: this device's saved key, else the open set's book key.
+Account's Save writes both. Why: the key was per-device localStorage,
+so her computer run read "sample" on one device and worked on another,
+and Judah's phone had no key at all.
+#47 — TCGplayer is the standard; Muse write-back proven by hand
+(2026-11-11). Jen asked for TCGplayer prices directly ("most accurate
+place") via the Ezzie-style loop: app makes a prompt → Muse looks it
+up → Muse writes it back into the app. Not funky — it's her tandem
+pattern; a standing "Ask Muse" button is the product form. Manual run
+this session: the computer's price run (stamps 20:36:56Z) was mostly
+12h-cache hits, and spot-checks against TCGplayer data (via TCGCSV
+mirrors) proved: UPC $1,495.75 = the CASE again, served from the
+poisoned cache the pre-#42 matcher wrote (cleared to null — the edition
+is Day vs Night, a photo/fix-name question); "Delta reign individual
+pack" $143.16 was wrong by ~20x (TCGplayer market $6.50 — written);
+"Delta reign" / "3 pack blister" (identical $23.65 duplicates) and
+"Delta Reign ETB" ($52.95 vs ~$84) cleared to null — unverifiable beats
+wrong. Lesson: Judah's shorthand names defeat token matching too often;
+photo ID and Muse write-back are the trustworthy paths.
