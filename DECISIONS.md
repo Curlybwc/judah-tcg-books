@@ -482,3 +482,13 @@ fetches, the app polls for the answer (~5-10s). Failures now surface
 the service's actual words instead of "didn't answer." Verified as the
 anon app role with a dummy key: the service's real 401 message came
 back through the RPC.
+#41 — The Account test tells the truth now (Jen, 2026-11-11: the service
+"is, in fact, answering"). The old test threw away the real reason and
+printed one blanket message — "the key didn't answer, check it was
+copied whole" — for every failure, including "answered fine, found no
+product with that name" (which is what her working key actually got for
+the hard-coded 151 ETB test name: 200, empty data). The test now looks
+up "Charizard" (proves the key against a name their catalog surely
+has) and, on sample fallback, quotes the provider's actual reason
+verbatim. Rule going forward: a failure message repeats what the other
+side actually said, never a guessed cause.

@@ -22,11 +22,11 @@ function PriceKeySection() {
     setPriceApiKey(key);
     setTesting(true);
     setTestMsg(null);
-    const r = await priceProvider.lookup("Scarlet & Violet 151 Elite Trainer Box");
+    const r = await priceProvider.lookup("Charizard");
     setTesting(false);
     setTestMsg(r.isSample
-      ? "Still sample prices — the key didn't answer. Check the key was copied whole, then try again."
-      : `It works — real market price for a 151 Elite Trainer Box right now: ${money(r.price)}`);
+      ? `Still sample prices. What actually happened: ${r.provider}`
+      : `It works — real prices are on. Test lookup: Charizard, ${money(r.price)} right now.`);
   }
 
   return (
@@ -34,7 +34,7 @@ function PriceKeySection() {
       <h2 className="text-lg font-black mb-1">💲 Real prices</h2>
       <p className="text-slate-400 text-sm mb-3">
         {hasKey
-          ? "A price key is saved on this device, so Scan for Price and the show-buy helper use real market prices (TCG API). Lookups cache for half a day — the free key covers 100 a day."
+          ? "A price key is saved on this device, so Price Scanner and the show-buy helper use real market prices (TCG API). Lookups cache for half a day — the free key covers 100 a day."
           : "Right now price lookups show SAMPLE prices. Paste the free TCG API key (starts with tcg_live_) and lookups become real market prices on this device."}
       </p>
       <Field label="TCG API key">
