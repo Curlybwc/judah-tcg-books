@@ -524,3 +524,11 @@ verified with a dummy key); Price Scanner's photo button is real
 their words + retry); Inventory has "📷 Fix name by photo" per product
 — tap a candidate to rename + save its price in one action
 (store.applyIdentified). Scans remaining shows after each scan.
+#44 — Fix name tries the FREE name search first (Jen, 2026-11-11: "what
+if it can already find it with the current name?"). The #43 button
+spent a photo scan immediately. Now: tap 🏷️ Fix name → name lookup
+runs free → confident match: "already finds it, they call it X" with a
+one-tap rename; choices: pick free, with "none of these — use a photo
+scan" as the escape; no match: the panel says so and offers the scan
+as an explicit spend. Scans are spent only on a deliberate tap after
+the free path fails.

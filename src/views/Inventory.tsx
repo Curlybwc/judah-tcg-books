@@ -5,7 +5,7 @@ import { BigButton, Chip, Field, inputCls, MoneyInput, ScreenTitle, ownerLabel }
 import BarcodeScanner from "../components/BarcodeScanner";
 import { catalogLookup, normalizeBarcode } from "../lib/catalog";
 import type { Lot, OwnerKind, PaidVia } from "../lib/types";
-import { identifyByPhoto, priceProvider, type IdentifyOutcome } from "../lib/priceProvider";
+import { identifyByPhoto, priceProvider, type IdentifyOutcome, type PriceResult } from "../lib/priceProvider";
 import { blobToDataUrl, compressImageFile } from "../lib/photos";
 import { useRef } from "react";
 import type { View } from "../App";
@@ -34,7 +34,18 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
   const identifyRef = useRef<HTMLInputElement>(null);
   const pendingIdentify = useRef<{ productId: string; name: string } | null>(null);
   const [identifyBusy, setIdentifyBusy] = useState(false);
-  const [identifyPanel, setIdentifyPanel] = useState<{ productId: string; name: string; outcome: IdentifyOutcome } | null>(null);
+  const [fixPanel, setFixPanel] = useState<{ productId: string; name: string; mode: "name" | "ask" | "photo"; nameResult?: PriceResult; outcome?: IdentifyOutcome } | null>(null);
+
+  // Fix-name flow (DECISIONS #44): the FREE name search goes first. A photo
+  // scan — a limited balance — is spent only when the name search can't pin
+  // the product down AND the user taps to spend one.
+  async function startFixName(productId: string, name: string) {
+    setIdentifyBusy(true); setPriceMsg(null); setFixPanel(null);
+    const r = await priceProvider.lookup(name);
+    setIdentifyBusy(false);
+    if (!r.isSample) setFixPanel({ productId, name, mode: "name", nameResult: r });
+    else setFixPanel({ productId, name, mode: "ask" });
+  }
 
   function pickIdentify(productId: string, name: string) {
     pendingIdentify.current = { productId, name };
@@ -50,7 +61,7 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     const dataUrl = await blobToDataUrl(await compressImageFile(f));
     const outcome = await identifyByPhoto(dataUrl);
     setIdentifyBusy(false);
-    setIdentifyPanel({ productId: target.productId, name: target.name, outcome });
+    setFixPanel({ productId: target.productId, name: target.name, mode: "photo", outcome });
   }
 
   async function applyCandidate(productId: string, candName: string, price: number) {
@@ -61,7 +72,7 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     }
     if (!(p > 0)) { setPriceMsg(`Found their name — ${candName} — but no price came with it. The name was not changed; try 💲 Look up price after renaming by hand.`); return; }
     const ok = await applyIdentified(productId, candName, p);
-    setIdentifyPanel(null);
+    setFixPanel(null);
     if (ok) setPriceMsg(`Renamed to their exact name: ${candName} · market ${money(p)} ✓ — future lookups for it are plain name searches now.`);
   }
 
@@ -230,30 +241,62 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
       )}
       {!editMode && priceMsg && <p className="text-emerald-300 text-sm font-semibold mb-3">{priceMsg}</p>}
       <input ref={identifyRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => void onIdentifyFile(e)} />
-      {!editMode && identifyBusy && <p className="text-slate-300 text-sm font-semibold mb-3">📷 Reading the photo… give it a few seconds.</p>}
-      {!editMode && identifyPanel && (
+      {!editMode && identifyBusy && <p className="text-slate-300 text-sm font-semibold mb-3">🔎 Checking… give it a few seconds.</p>}
+      {!editMode && fixPanel && (
         <div className="rounded-2xl bg-slate-800 border border-sky-700 p-4 mb-3">
           <div className="flex justify-between items-start gap-3">
-            <p className="text-white font-bold">📷 Photo scan — {identifyPanel.name}</p>
-            <button onClick={() => setIdentifyPanel(null)} className="text-slate-400 font-black px-2">✕</button>
+            <p className="text-white font-bold">🏷️ Fix name — {fixPanel.name}</p>
+            <button onClick={() => setFixPanel(null)} className="text-slate-400 font-black px-2">✕</button>
           </div>
-          {(identifyPanel.outcome.status === "matched" || identifyPanel.outcome.status === "ambiguous") && identifyPanel.outcome.candidates.length > 0 ? (
+          {fixPanel.mode === "name" && fixPanel.nameResult && !fixPanel.nameResult.choices && (
             <>
-              <p className="text-slate-400 text-sm mt-1 mb-2">Tap the right one to rename this product to their exact name and save its price. After that, lookups are plain name searches — no more photo scans needed for it.</p>
+              <p className="text-slate-300 text-sm mt-1">The <b>free name search already finds this one</b> — no photo scan needed. They call it:</p>
+              <p className="text-white font-black text-lg mt-1">{fixPanel.nameResult.matchedName} · {money(fixPanel.nameResult.price)}</p>
+              <button onClick={() => void applyCandidate(fixPanel.productId, fixPanel.nameResult!.matchedName ?? fixPanel.name, fixPanel.nameResult!.price)} className="mt-2 rounded-xl bg-yellow-400 text-slate-900 px-4 py-2.5 font-black">Use their name + price</button>
+            </>
+          )}
+          {fixPanel.mode === "name" && fixPanel.nameResult?.choices && (
+            <>
+              <p className="text-slate-400 text-sm mt-1 mb-2">The free name search found these — tap the right one to rename + save its price:</p>
               <div className="grid gap-2">
-                {identifyPanel.outcome.candidates.slice(0, 4).map((c, i) => (
-                  <button key={i} onClick={() => void applyCandidate(identifyPanel.productId, c.matchedName ?? "", c.price)} className="flex items-center gap-3 rounded-xl bg-slate-700/60 border border-slate-600 p-2.5 text-left">
+                {fixPanel.nameResult.choices.map((c, i) => (
+                  <button key={i} onClick={() => void applyCandidate(fixPanel.productId, c.matchedName ?? "", c.price)} className="flex items-center gap-3 rounded-xl bg-slate-700/60 border border-slate-600 p-2.5 text-left">
                     {c.imageUrl && <img src={c.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover bg-slate-700" />}
                     <span className="flex-1 text-slate-100 font-bold text-sm">{c.matchedName}</span>
-                    <span className="text-white font-black">{c.price > 0 ? money(c.price) : "price on tap"}</span>
+                    <span className="text-white font-black">{money(c.price)}</span>
                   </button>
                 ))}
               </div>
+              <button onClick={() => pickIdentify(fixPanel.productId, fixPanel.name)} className="mt-3 rounded-xl bg-slate-700 text-slate-100 px-4 py-2.5 font-bold">None of these — 📷 use a photo scan (1 scan)</button>
             </>
-          ) : (
-            <p className="text-amber-200 text-sm mt-1">{identifyPanel.outcome.status === "retake" ? `One more photo: ${identifyPanel.outcome.message ?? "the picture wasn't clear enough."}` : identifyPanel.outcome.status === "not_found" ? "The photo read fine, but nothing in their catalog matches it." : identifyPanel.outcome.message ?? "The photo scan didn't work."}</p>
           )}
-          {identifyPanel.outcome.scansRemaining != null && <p className="text-slate-500 text-xs mt-2">📷 {identifyPanel.outcome.scansRemaining} photo scans left on the account</p>}
+          {fixPanel.mode === "ask" && (
+            <>
+              <p className="text-slate-300 text-sm mt-1">The free name search <b>can't find “{fixPanel.name}”</b> in their catalog. A photo scan can read the box itself — it uses 1 scan from the account (25 free to start).</p>
+              <button onClick={() => pickIdentify(fixPanel.productId, fixPanel.name)} className="mt-2 rounded-xl bg-yellow-400 text-slate-900 px-4 py-2.5 font-black">📷 Scan the box</button>
+            </>
+          )}
+          {fixPanel.mode === "photo" && fixPanel.outcome && (
+            <>
+              {(fixPanel.outcome.status === "matched" || fixPanel.outcome.status === "ambiguous") && fixPanel.outcome.candidates.length > 0 ? (
+                <>
+                  <p className="text-slate-400 text-sm mt-1 mb-2">Tap the right one to rename this product to their exact name and save its price. After that, lookups are plain name searches — no more photo scans needed for it.</p>
+                  <div className="grid gap-2">
+                    {fixPanel.outcome.candidates.slice(0, 4).map((c, i) => (
+                      <button key={i} onClick={() => void applyCandidate(fixPanel.productId, c.matchedName ?? "", c.price)} className="flex items-center gap-3 rounded-xl bg-slate-700/60 border border-slate-600 p-2.5 text-left">
+                        {c.imageUrl && <img src={c.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover bg-slate-700" />}
+                        <span className="flex-1 text-slate-100 font-bold text-sm">{c.matchedName}</span>
+                        <span className="text-white font-black">{c.price > 0 ? money(c.price) : "price on tap"}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-amber-200 text-sm mt-1">{fixPanel.outcome.status === "retake" ? `One more photo: ${fixPanel.outcome.message ?? "the picture wasn't clear enough."}` : fixPanel.outcome.status === "not_found" ? "The photo read fine, but nothing in their catalog matches it." : fixPanel.outcome.message ?? "The photo scan didn't work."}</p>
+              )}
+              {fixPanel.outcome.scansRemaining != null && <p className="text-slate-500 text-xs mt-2">📷 {fixPanel.outcome.scansRemaining} photo scans left on the account</p>}
+            </>
+          )}
         </div>
       )}
       {!editMode && groups.length === 0 && (
@@ -282,7 +325,7 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
                       <button disabled={photoBusy} onClick={() => pickPhoto(g.productId!)} className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200 disabled:opacity-50">{g.imageUrl ? "📷 Change photo" : "📷 Add your photo"}</button>
                       {!g.imageUrl && <button disabled={photoBusy} onClick={() => void findOnlinePhoto(g.productId!, g.name)} className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200 disabled:opacity-50">🌐 Find online photo</button>}
                       <button disabled={priceBusy} onClick={() => void lookupOne(g)} className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200 disabled:opacity-50">💲 Look up price</button>
-                      <button disabled={identifyBusy} onClick={() => pickIdentify(g.productId!, g.name)} className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200 disabled:opacity-50">📷 Fix name by photo</button>
+                      <button disabled={identifyBusy} onClick={() => void startFixName(g.productId!, g.name)} className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200 disabled:opacity-50">🏷️ Fix name</button>
                     </div>
                   )}
                 </div>
