@@ -146,3 +146,17 @@ export function money(n: number): string {
   const sign = n < 0 ? "-" : "";
   return `${sign}$${Math.abs(n).toFixed(2)}`;
 }
+
+export interface LoanLike { principal: number; interest_type: "none" | "flat" | "percent"; interest_value: number }
+export interface LoanMathResult { interestAmount: number; totalToRepay: number; paid: number; owed: number; paidOff: boolean }
+
+/** Simple loan math (DECISIONS #34): interest is one flat amount or one
+ *  percent of the amount borrowed — never compounding. */
+export function loanMath(loan: LoanLike, paidTotal: number): LoanMathResult {
+  const interestAmount = loan.interest_type === "flat" ? round2(loan.interest_value)
+    : loan.interest_type === "percent" ? round2((loan.principal * loan.interest_value) / 100) : 0;
+  const totalToRepay = round2(loan.principal + interestAmount);
+  const paid = round2(paidTotal);
+  const owed = Math.max(0, round2(totalToRepay - paid));
+  return { interestAmount, totalToRepay, paid, owed, paidOff: totalToRepay > 0 && owed <= 0 };
+}

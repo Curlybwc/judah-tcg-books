@@ -14,7 +14,7 @@ cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
 cpSync(join(root, "src/lib/quickbuy.ts"), join(tmp, "quickbuy.ts"));
 cpSync(join(root, "src/lib/catalog.ts"), join(tmp, "catalog.ts"));
 execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "quickbuy.ts", "catalog.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
-const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
 const { parseQuickBuyLine, allocateShipping } = createRequire(import.meta.url)(join(tmp, "out/quickbuy.js"));
 const { UPC_CATALOG, normalizeBarcode, catalogLookup } = createRequire(import.meta.url)(join(tmp, "out/catalog.js"));
 
@@ -117,6 +117,17 @@ eq("Mom half of 5.42 profit", momProfitShare(5.42), 2.71);
 eq("Mom half of 21.27 profit", momProfitShare(21.27), 10.64); // halving is exact in binary float, so 10.635 rounds up under the app's round2 rule
 eq("Mom share of no profit", momProfitShare(0), 0);
 eq("Mom shares a loss 50/50", momProfitShare(-10), -5);
+
+// Loans (DECISIONS #34): simple interest only — flat dollars or a percent
+// of the amount borrowed; owed never goes below zero; overpaying closes it.
+const lf = loanMath({ principal: 200, interest_type: "flat", interest_value: 20 }, 50);
+eq("loan flat interest", lf.interestAmount, 20); eq("loan flat total", lf.totalToRepay, 220); eq("loan flat owed", lf.owed, 170); eq("loan flat not paid off", lf.paidOff ? 1 : 0, 0);
+const lp = loanMath({ principal: 200, interest_type: "percent", interest_value: 10 }, 0);
+eq("loan percent interest", lp.interestAmount, 20); eq("loan percent total", lp.totalToRepay, 220);
+const ln = loanMath({ principal: 150, interest_type: "none", interest_value: 0 }, 150);
+eq("loan none interest", ln.interestAmount, 0); eq("loan paid off at exact", ln.paidOff ? 1 : 0, 1);
+const lo = loanMath({ principal: 100, interest_type: "none", interest_value: 0 }, 140);
+eq("loan overpay owed clamps to zero", lo.owed, 0); eq("loan overpay paid off", lo.paidOff ? 1 : 0, 1);
 
 console.log(fails === 0 ? "ALL MATH TESTS PASSED" : `${fails} FAILURES`);
 process.exit(fails ? 1 : 0);

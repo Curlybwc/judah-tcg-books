@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../lib/store";
-import { money } from "../lib/math";
+import { loanMath, money } from "../lib/math";
 import { checkForUpdates, consumeJustUpdated, startBackgroundUpdateChecks } from "../lib/pwa";
 import { JobButton } from "../components/ui";
 import type { View } from "../App";
 
 export default function Home({ go }: { go: (v: View) => void }) {
-  const { totalProfit, userEmail, remote, ready, activeShow, pendingCount, syncNow } = useStore();
+  const { totalProfit, userEmail, remote, ready, activeShow, pendingCount, syncNow, loans, loanPayments } = useStore();
   const [checking, setChecking] = useState(false);
+  const totalOwed = loans.reduce((sum, loan) => {
+    const paid = loanPayments.filter((p) => p.loan_id === loan.id).reduce((a, p) => a + Number(p.amount), 0);
+    return sum + loanMath(loan, paid).owed;
+  }, 0);
   const [updateMsg, setUpdateMsg] = useState<string | null>(() => (consumeJustUpdated() ? "✓ App updated — this is the newest version." : null));
 
   useEffect(() => { startBackgroundUpdateChecks(); }, []);
@@ -53,6 +57,7 @@ export default function Home({ go }: { go: (v: View) => void }) {
         <JobButton emoji="💸" label="I Sold on TCGplayer" sub="Upload the orders file from TCGplayer" onClick={() => go("sell")} />
         <JobButton emoji="📷" label="Scan for Price" sub="What is this worth right now?" onClick={() => go("scan")} />
         <JobButton emoji="🤝" label="Giovanni Paid Me" sub="He sent you a Zelle? Log it here" onClick={() => go("giovanni")} />
+        <JobButton emoji="💳" label="Money I Owe" sub={totalOwed > 0 ? `You owe ${money(totalOwed)} — who, how much, and when it's due` : "Borrowed money you need to pay back"} onClick={() => go("loans")} />
         <JobButton emoji="📈" label="Check My Profit" sub="Week, month, and all time" onClick={() => go("profit")} />
         <JobButton emoji="📦" label="What I Have For Sale" sub="Everything listed and ready to sell" onClick={() => go("inventory")} />
       </div>

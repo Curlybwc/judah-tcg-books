@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { SAMPLE_OWNER_ID } from "./config";
-import type { BookMember, BookSet, Expense, ExpenseCategory, GiovanniPayment, Lot, MomPayment, Product, Purchase, Sale, Show } from "./types";
+import type { BookMember, BookSet, Expense, ExpenseCategory, GiovanniPayment, Loan, LoanInput, LoanPayment, Lot, MomPayment, Product, Purchase, Sale, Show } from "./types";
 import { blobToDataUrl, compressImageFile } from "./photos";
 import { momProfitShare, purchaseMath, quickSaleMath, saleMath, taxFromRate } from "./math";
 
@@ -21,14 +21,14 @@ const SEED_LOTS: Lot[] = [
   { id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc2", owner_id: SAMPLE_OWNER_ID, product_id: SEED_PRODUCTS[1].id, purchase_id: SEED_PURCHASES[1].id, qty_on_hand: 6, cost_basis_unit: 32, owner_kind: "split", judah_pct: 50 },
 ];
 
-interface LocalData { products: Product[]; purchases: Purchase[]; lots: Lot[]; sales: Sale[]; payments: GiovanniPayment[]; shows: Show[]; momPayments: MomPayment[]; expenses: Expense[]; }
+interface LocalData { products: Product[]; purchases: Purchase[]; lots: Lot[]; sales: Sale[]; payments: GiovanniPayment[]; shows: Show[]; momPayments: MomPayment[]; expenses: Expense[]; loans: Loan[]; loanPayments: LoanPayment[]; }
 const LOCAL_KEY = "jtb-local-v1";
 function loadLocal(): LocalData {
   try {
     const raw = localStorage.getItem(LOCAL_KEY);
-    if (raw) { const d = JSON.parse(raw) as LocalData; if (!d.shows) d.shows = []; if (!d.momPayments) d.momPayments = []; if (!d.expenses) d.expenses = []; return d; }
+    if (raw) { const d = JSON.parse(raw) as LocalData; if (!d.shows) d.shows = []; if (!d.momPayments) d.momPayments = []; if (!d.expenses) d.expenses = []; if (!d.loans) d.loans = []; if (!d.loanPayments) d.loanPayments = []; return d; }
   } catch { /* ignore */ }
-  return { products: SEED_PRODUCTS, purchases: SEED_PURCHASES, lots: SEED_LOTS, sales: [], payments: [], shows: [], momPayments: [], expenses: [] };
+  return { products: SEED_PRODUCTS, purchases: SEED_PURCHASES, lots: SEED_LOTS, sales: [], payments: [], shows: [], momPayments: [], expenses: [], loans: [], loanPayments: [] };
 }
 
 // ---------- Offline outbox: writes made with no signal queue here and push later ----------
@@ -71,6 +71,13 @@ interface Store {
   shows: Show[];
   momPayments: MomPayment[];
   expenses: Expense[];
+  loans: Loan[];
+  loanPayments: LoanPayment[];
+  addLoan: (input: LoanInput) => Promise<void>;
+  updateLoan: (id: string, input: LoanInput) => Promise<void>;
+  deleteLoan: (id: string) => Promise<void>;
+  addLoanPayment: (loanId: string, amount: number, paidOn: string, note: string) => Promise<void>;
+  deleteLoanPayment: (id: string) => Promise<void>;
   addExpense: (amount: number, spentOn: string, category: ExpenseCategory, note: string) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
   setProductImage: (productId: string, url: string) => Promise<void>;
@@ -110,7 +117,7 @@ export function useStore(): Store {
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [data, setData] = useState<LocalData>({ products: [], purchases: [], lots: [], sales: [], payments: [], shows: [], momPayments: [], expenses: [] });
+  const [data, setData] = useState<LocalData>({ products: [], purchases: [], lots: [], sales: [], payments: [], shows: [], momPayments: [], expenses: [], loans: [], loanPayments: [] });
   const [outbox, setOutbox] = useState<OutboxOp[]>(() => loadOutbox());
   const outboxRef = useRef<OutboxOp[]>(outbox);
   const [ready, setReady] = useState(false);
@@ -131,7 +138,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const load = useCallback(async (owner: string) => {
     try {
-      const [p, pu, l, s, g, sh, mp, ex] = await Promise.all([
+      const [p, pu, l, s, g, sh, mp, ex, lo, lp] = await Promise.all([
         supabase.from("products").select("*").eq("owner_id", owner),
         supabase.from("purchases").select("*").eq("owner_id", owner).order("purchased_on", { ascending: false }),
         supabase.from("inventory_lots").select("*").eq("owner_id", owner),
@@ -140,8 +147,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         supabase.from("shows").select("*").eq("owner_id", owner).order("show_date", { ascending: false }),
         supabase.from("mom_payments").select("*").eq("owner_id", owner).order("paid_on", { ascending: false }),
         supabase.from("expenses").select("*").eq("owner_id", owner).order("spent_on", { ascending: false }),
+        supabase.from("loans").select("*").eq("owner_id", owner).order("borrowed_on", { ascending: false }),
+        supabase.from("loan_payments").select("*").eq("owner_id", owner).order("paid_on", { ascending: false }),
       ]);
-      if (p.error || pu.error || l.error || s.error || g.error || sh.error || mp.error || ex.error) throw new Error("supabase read failed");
+      if (p.error || pu.error || l.error || s.error || g.error || sh.error || mp.error || ex.error || lo.error || lp.error) throw new Error("supabase read failed");
       const d: LocalData = {
         products: (p.data ?? []) as Product[],
         purchases: (pu.data ?? []) as Purchase[],
@@ -151,6 +160,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         shows: (sh.data ?? []) as Show[],
         momPayments: (mp.data ?? []) as MomPayment[],
         expenses: (ex.data ?? []) as Expense[],
+        loans: (lo.data ?? []) as unknown as Loan[],
+        loanPayments: (lp.data ?? []) as unknown as LoanPayment[],
       };
       setData(d); setRemote(true); remoteRef.current = true;
     } catch {
@@ -180,7 +191,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // Signed in but in no set yet: the gate screen offers create/join.
         setSets([]); setMembers([]); setCurrentSetId(null);
         setOwnerId(""); ownerRef.current = "";
-        setData({ products: [], purchases: [], lots: [], sales: [], payments: [], shows: [], momPayments: [], expenses: [] });
+        setData({ products: [], purchases: [], lots: [], sales: [], payments: [], shows: [], momPayments: [], expenses: [], loans: [], loanPayments: [] });
         setRemote(true); remoteRef.current = true; setReady(true);
         return;
       }
@@ -543,6 +554,48 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     applyLocal((d) => ({ ...d, expenses: d.expenses.filter((e) => e.id !== id) }));
   }, [applyLocal]);
 
+  const addLoan: Store["addLoan"] = useCallback(async (input) => {
+    const loan: Loan = { id: uuid(), owner_id: ownerRef.current, ...input };
+    if (remoteRef.current) {
+      try { const r = await supabase.from("loans").insert(loan as never); if (r.error) throw r.error; }
+      catch { setNotice("Saved on this phone only — couldn't reach the cloud."); }
+    }
+    applyLocal((d) => ({ ...d, loans: [loan, ...d.loans] }));
+  }, [applyLocal]);
+
+  const updateLoan: Store["updateLoan"] = useCallback(async (id, input) => {
+    if (remoteRef.current) {
+      try { const u = await supabase.from("loans").update(input as never).eq("id", id); if (u.error) throw u.error; }
+      catch { setNotice("Couldn't save that change in the cloud — check your connection and try again."); return; }
+    }
+    applyLocal((d) => ({ ...d, loans: d.loans.map((l) => (l.id === id ? { ...l, ...input } : l)) }));
+  }, [applyLocal]);
+
+  const deleteLoan: Store["deleteLoan"] = useCallback(async (id) => {
+    if (remoteRef.current) {
+      try { const d = await supabase.from("loans").delete().eq("id", id); if (d.error) throw d.error; }
+      catch { setNotice("Couldn't delete that in the cloud — check your connection and try again."); return; }
+    }
+    applyLocal((d) => ({ ...d, loans: d.loans.filter((l) => l.id !== id), loanPayments: d.loanPayments.filter((p) => p.loan_id !== id) }));
+  }, [applyLocal]);
+
+  const addLoanPayment: Store["addLoanPayment"] = useCallback(async (loanId, amount, paidOn, note) => {
+    const payment: LoanPayment = { id: uuid(), owner_id: ownerRef.current, loan_id: loanId, amount, paid_on: paidOn, note };
+    if (remoteRef.current) {
+      try { const r = await supabase.from("loan_payments").insert(payment as never); if (r.error) throw r.error; }
+      catch { setNotice("Saved on this phone only — couldn't reach the cloud."); }
+    }
+    applyLocal((d) => ({ ...d, loanPayments: [payment, ...d.loanPayments] }));
+  }, [applyLocal]);
+
+  const deleteLoanPayment: Store["deleteLoanPayment"] = useCallback(async (id) => {
+    if (remoteRef.current) {
+      try { const d = await supabase.from("loan_payments").delete().eq("id", id); if (d.error) throw d.error; }
+      catch { setNotice("Couldn't delete that in the cloud — check your connection and try again."); return; }
+    }
+    applyLocal((d) => ({ ...d, loanPayments: d.loanPayments.filter((p) => p.id !== id) }));
+  }, [applyLocal]);
+
   const setProductImage: Store["setProductImage"] = useCallback(async (productId, url) => {
     if (remoteRef.current) {
       try { const u = await supabase.from("products").update({ image_url: url }).eq("id", productId); if (u.error) throw u.error; }
@@ -685,7 +738,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     ready, remote, notice, userEmail, userId, sets, members, currentSetId, switchSet, createSet, joinSet, resetJoinCode, removeMember, leaveSet, ownerId,
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
     shows: data.shows, activeShow, pendingCount: outbox.length, syncNow, startShow, closeShow, recordQuickSale,
-    momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, setProductImage, uploadProductPhoto, momOwed, addMomPayment, deleteMomPayment, bulkRemoveLots,
+    momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, loans: data.loans, loanPayments: data.loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment, setProductImage, uploadProductPhoto, momOwed, addMomPayment, deleteMomPayment, bulkRemoveLots,
     giovanniOwed, totalProfit, signIn, signInWithGoogle, signOut, addPurchase, updatePurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
     reload: () => load(ownerRef.current),
   };

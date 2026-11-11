@@ -126,3 +126,41 @@ export interface BookMember {
   role: "owner" | "member";
   joined_at?: string;
 }
+
+// Loans — money Judah borrowed from a person and has to pay back
+// (DECISIONS #34). Interest is simple on purpose: none, a flat dollar
+// amount, or a percent of what he borrowed. No compounding.
+export type InterestType = "none" | "flat" | "percent";
+
+export interface Loan {
+  id: string;
+  owner_id: string;
+  lender: string;
+  principal: number;
+  interest_type: InterestType;
+  interest_value: number;
+  borrowed_on: string;
+  due_on: string | null;
+  note: string;
+  created_at?: string;
+}
+
+export interface LoanPayment {
+  id: string;
+  owner_id: string;
+  loan_id: string;
+  amount: number;
+  paid_on: string;
+  note: string;
+  created_at?: string;
+}
+
+export interface LoanInput {
+  lender: string;
+  principal: number;
+  interest_type: InterestType;
+  interest_value: number;
+  borrowed_on: string;
+  due_on: string | null;
+  note: string;
+}

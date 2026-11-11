@@ -22,6 +22,7 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
   const [editMsg, setEditMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [photoMsg, setPhotoMsg] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const [photoBusy, setPhotoBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const pendingPhotoProduct = useRef<string | null>(null);
@@ -88,10 +89,21 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     return [...map.values()];
   }, [lots, products]);
   const totalUnits = groups.reduce((s, g) => s + g.lots.reduce((a, l) => a + l.qty_on_hand, 0), 0);
+  const q = query.trim().toLowerCase();
+  const visibleGroups = q ? groups.filter((g) => {
+    const p = products.find((x) => x.id === g.productId);
+    return g.name.toLowerCase().includes(q) || (p?.barcode ?? "").includes(query.trim());
+  }) : groups;
+  const visibleLots = q ? lots.filter((l) => {
+    const p = products.find((x) => x.id === l.product_id);
+    return (p?.name ?? "").toLowerCase().includes(q) || (p?.barcode ?? "").includes(query.trim());
+  }) : lots;
 
   return (
     <div>
       <ScreenTitle title="📦 What I Have For Sale" sub={`${totalUnits} items ready to sell. (Your personal collection stays in Collectr — this is only for-sale stock.)`} />
+      <input className={`${inputCls} mb-4`} placeholder="🔍 Search your stock — type a name or barcode…" value={query} onChange={(e) => setQuery(e.target.value)} />
+      {q && <p className="text-slate-400 text-sm mb-3">{visibleGroups.length} product{visibleGroups.length === 1 ? "" : "s"} match "{query}".</p>}
       <button onClick={() => { setEditMode(!editMode); setSelected(new Set()); setEditMsg(null); setConfirmRemove(false); }}
         className={`w-full rounded-2xl py-3 font-bold mb-4 ${editMode ? "bg-yellow-400 text-slate-900" : "bg-slate-800 border border-slate-700 text-slate-200"}`}>
         {editMode ? "✓ Done editing" : "✏️ Bulk edit stock"}
@@ -101,11 +113,11 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
         <div className="mb-5">
           <p className="text-slate-300 text-sm mb-2">Tap rows to select them — including rows at zero, so leftovers can be removed for good. Then zero them out (kept in the adjustment record) or remove the rows completely (only works if nothing ever sold from them).</p>
           <div className="flex gap-2 mb-3">
-            <button onClick={() => setSelected(new Set(lots.map((l) => l.id)))} className="flex-1 rounded-xl bg-slate-700 text-white py-2 font-bold text-sm">Select all</button>
+            <button onClick={() => setSelected(new Set(visibleLots.map((l) => l.id)))} className="flex-1 rounded-xl bg-slate-700 text-white py-2 font-bold text-sm">Select all</button>
             <button onClick={() => setSelected(new Set())} className="flex-1 rounded-xl bg-slate-700 text-white py-2 font-bold text-sm">Select none</button>
           </div>
           <div className="grid gap-2 mb-3">
-            {lots.map((l) => {
+            {visibleLots.map((l) => {
               const p = products.find((x) => x.id === l.product_id);
               const soldFrom = sales.some((s) => s.lot_id === l.id);
               const on = selected.has(l.id);
@@ -120,7 +132,7 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
                 </button>
               );
             })}
-            {lots.length === 0 && <p className="text-slate-400">No stock rows at all.</p>}
+            {visibleLots.length === 0 && <p className="text-slate-400">{lots.length === 0 ? "No stock rows at all." : "Nothing matches that search."}</p>}
           </div>
           {editMsg && <p className="text-emerald-300 text-sm font-semibold mb-3">{editMsg}</p>}
           <div className="grid gap-2">
@@ -145,7 +157,8 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
       )}
       {!editMode && (
       <div className="grid gap-3">
-        {groups.map((g) => {
+        {q && visibleGroups.length === 0 && <p className="text-slate-400 mb-3">Nothing in stock matches that search.</p>}
+        {visibleGroups.map((g) => {
           const units = g.lots.reduce((a, l) => a + l.qty_on_hand, 0);
           return (
             <div key={g.name} className="rounded-3xl bg-slate-800 border border-slate-700 p-5">

@@ -387,3 +387,20 @@ the Ascended Heroes mini tins buy mid-save: the product landed, the
 purchase + stock rows queued against a set that was deleted minutes
 later; after this fix the queue drains into the open set and the buy
 completes.)
+
+#34 — Loans he owes + stock search (Jen, 2026-11-11). New Home job:
+"💳 Money I Owe." When Judah borrows from a person, he records who,
+how much, the date borrowed, a due date (or "no set date"), an optional
+note, and interest in the simple forms informal loans actually take:
+none, a flat dollar amount, or a percent of what he borrowed — never
+compounding (loanMath in math.ts, tested). Each loan shows total to pay
+back, paid so far with a progress bar, still-owed, and a due chip that
+turns amber inside two weeks and red when overdue; payments are logged
+with date + note and can be removed; loans can be edited and deleted;
+paid-off loans collect at the bottom. Tables loans + loan_payments
+(migration 014), member-only RLS like the rest of the real books
+(verified as a caller: member writes, a stranger sees zero, anon is
+denied outright, deleting a loan cascades its payments). The Home
+button's subtitle carries the live total owed. SAME PASS: 🔍 search on
+the stock screen — filters by product name or barcode, in both the
+normal view and bulk-edit (select-all respects the search).
