@@ -564,3 +564,14 @@ pack" $143.16 was wrong by ~20x (TCGplayer market $6.50 — written);
 "Delta Reign ETB" ($52.95 vs ~$84) cleared to null — unverifiable beats
 wrong. Lesson: Judah's shorthand names defeat token matching too often;
 photo ID and Muse write-back are the trustworthy paths.
+#48 — 🤖 Ask Muse for prices (Jen approved, 2026-11-11). A button on
+Inventory collects every in-stock product whose price is missing or
+older than a day and builds a paste-ready prompt: the set id, the
+honesty rules (exact product only — never a case for a single, never
+one edition for another; unmatchable means flag it, never guess), the
+write-back instruction (public.products on the Judah project), and a
+verify-by-readback + report-table step. Jen pastes it to her Muse;
+Muse prices off TCGplayer and writes back; she refreshes and sees
+them. The Ezzie tandem shape, in Judah's app: the API path stays for
+quick single lookups; Muse is the accuracy path for Judah's own
+shorthand names, which defeat automated matching.

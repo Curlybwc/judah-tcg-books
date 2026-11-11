@@ -11,7 +11,7 @@ import { useRef } from "react";
 import type { View } from "../App";
 
 export default function Inventory({ go }: { go: (v: View) => void }) {
-  const { lots, products, sales, undoPurchaseForLot, adjustStock, bulkRemoveLots, setProductImage, uploadProductPhoto, refreshMarketPrice, applyIdentified } = useStore();
+  const { lots, products, sales, undoPurchaseForLot, adjustStock, bulkRemoveLots, setProductImage, uploadProductPhoto, refreshMarketPrice, applyIdentified, sets, currentSetId } = useStore();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [adjustId, setAdjustId] = useState<string | null>(null);
   const [editBuyId, setEditBuyId] = useState<string | null>(null);
@@ -177,6 +177,41 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     }
     return [...map.values()];
   }, [lots, products]);
+
+  const [askOpen, setAskOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const needsPrices = groups.filter((g) => g.productId && (g.market == null || !g.marketAt || Date.now() - +new Date(g.marketAt) > 86400e3));
+
+  // The tandem loop (DECISIONS #48): the app writes the prompt, Muse does
+  // the TCGplayer legwork and writes prices back into the books. The prompt
+  // carries today's hard lessons: never a case for a single, no guessing —
+  // flag it and leave it blank.
+  function buildAskPrompt(): string {
+    const setName = sets.find((x) => x.id === currentSetId)?.name ?? "the books";
+    const lines = needsPrices.map((g) => `- "${g.name}" — ${g.market == null ? "no price on file" : `saved price ${money(g.market!)} from ${new Date(g.marketAt!).toLocaleDateString("en-US")}`}`).join("\n");
+    return `Look up TCGplayer market prices for products in my Judah TCG Books and write them back into the books.
+
+The books live in Supabase project zjsxplnyphejklsdhqxz, table public.products, set owner_id = '${currentSetId}' ("${setName}").
+
+For each product below:
+1. Find the exact product on TCGplayer. Match the real product, not a relative: a CASE is not a single box, one edition (like Day vs Night) is not the other, a single pack is not a booster box. If you can't pin it down confidently, DO NOT guess — leave its price alone and flag it.
+2. Use the TCGplayer MARKET price.
+3. Write it back: update public.products set market_price to the price and market_price_at to now, where owner_id = '${currentSetId}' and the name matches exactly.
+4. Read the rows back to verify, then report a table: my product name — the price you saved — the exact TCGplayer product name you matched. List separately anything you left blank, and why.
+
+Products needing prices:
+${lines}`;
+  }
+
+  async function copyAskPrompt() {
+    const text = buildAskPrompt();
+    try { await navigator.clipboard.writeText(text); setCopied(true); }
+    catch {
+      const ta = document.getElementById("ask-prompt") as HTMLTextAreaElement | null;
+      if (ta) { ta.select(); document.execCommand("copy"); setCopied(true); }
+    }
+  }
+
   const totalUnits = groups.reduce((s, g) => s + g.lots.reduce((a, l) => a + l.qty_on_hand, 0), 0);
   const q = query.trim().toLowerCase();
   const visibleGroups = q ? groups.filter((g) => {
@@ -194,6 +229,24 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
       <div className="mb-3">
         <BigButton onClick={() => void lookupAll()} disabled={priceBusy}>{allProgress ?? "💲 Update prices"}</BigButton>
       </div>
+      <button onClick={() => { setAskOpen(!askOpen); setCopied(false); }} className="w-full mb-3 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-bold">
+        🤖 Ask Muse for prices{needsPrices.length ? ` (${needsPrices.length} need${needsPrices.length === 1 ? "s" : ""} it)` : ""}
+      </button>
+      {askOpen && (
+        <div className="rounded-2xl bg-slate-800 border border-sky-700 p-4 mb-3">
+          {!currentSetId || currentSetId === "11111111-1111-4111-8111-111111111111" ? (
+            <p className="text-slate-300 text-sm">Sign in with your real books first — Muse writes the prices into your set, and the demo books have nowhere to put them.</p>
+          ) : needsPrices.length === 0 ? (
+            <p className="text-slate-300 text-sm">Every in-stock price is less than a day old — nothing to ask Muse for right now.</p>
+          ) : (
+            <>
+              <p className="text-slate-300 text-sm mb-2">Copy this prompt and paste it into a chat with Muse. Muse looks each product up on <b>TCGplayer itself</b> and writes the market prices straight into these books — then refresh this page to see them.</p>
+              <textarea id="ask-prompt" readOnly rows={12} className="w-full rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-xs p-3 mb-2" value={buildAskPrompt()} />
+              <button onClick={() => void copyAskPrompt()} className="w-full rounded-xl bg-yellow-400 text-slate-900 py-3 font-black">{copied ? "✓ Copied — now paste it to Muse" : "📋 Copy prompt"}</button>
+            </>
+          )}
+        </div>
+      )}
       <div className="mb-3">
         <BigButton onClick={() => go("buy")}>＋ Add inventory — I bought product</BigButton>
       </div>
