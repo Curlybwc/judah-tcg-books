@@ -324,3 +324,15 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     migrate from the sample owner to his uid (his books already hold 12
     purchases incl. Jen's entries — see #30-era data), and migration 002's
     demo-write policies can finally be dropped.
+    Outcome (same evening): Google Cloud project "judah-tcg-books" created
+    under Jen's account; consent screen PUBLISHED ("In production", no
+    verification needed — basic scopes only) with the app page as homepage
+    and a plain privacy page (public/privacy.html, live on the site) as the
+    policy URL; OAuth web client created with the Supabase callback as its
+    only redirect URI; Supabase provider enabled via Management API with
+    site_url + uri_allow_list set to the app URL. Verified: the Supabase
+    authorize endpoint 302s to Google carrying the right client ID, and the
+    live bundle carries the button. Last proof is Judah's first real
+    sign-in. Migration of his rows is pre-written:
+    scripts/move-books-to-user.sql (re-tag owner, run once his auth user
+    exists; then drop 002's demo policies per the original plan).

@@ -99,12 +99,15 @@ an authenticated user with a different uid sees 0 sample rows.
 
 ## Morning checklist (Jen + Judah, ~10 minutes)
 
-1. Supabase dashboard → project Judah TCG Books → Authentication → create Judah's
-   user (email + password). He signs in via the app's Sign In screen; demo data is
-   replaced by his own empty books.
-2. Drop the demo-write policies (migration 002) once he's signed in.
-3. Optional: sign up for the free TCG API key together, then swap the sample price
-   provider in `src/lib/priceProvider.ts` (one class + one line).
+1. Judah opens the app → Account → **Sign in with Google** with his own Google
+   account (Google sign-in went live 2026-11-10; provider + published consent
+   screen configured — DECISIONS #31). His books start empty; then Maven runs
+   `scripts/move-books-to-user.sql` to move everything entered in the demo
+   books (incl. the Delta Reign ETBs) into his account.
+2. Drop the demo-write policies (migration 002) once he's signed in and the
+   books are moved.
+3. The TCG API price key is entered in the app itself (Account → Real prices)
+   once Jen creates it at tcgapi.dev — no code change needed.
 4. Deploy `dist/` (Netlify/Vercel/GitHub Pages — free) and Add to Home Screen.
 
 ## Layout
