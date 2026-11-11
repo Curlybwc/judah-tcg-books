@@ -604,6 +604,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const refreshMarketPrice: Store["refreshMarketPrice"] = useCallback(async (productId, name) => {
     const r = await priceProvider.lookup(name);
+    // Only a confident REAL price is saved (DECISIONS #42). A sample, a
+    // pick-from-choices result, or a miss leaves the saved price untouched.
+    if (r.isSample || r.choices || !(r.price > 0)) return r;
     const stamp = new Date().toISOString();
     if (remoteRef.current) {
       try {

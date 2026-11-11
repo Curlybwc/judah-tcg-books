@@ -492,3 +492,21 @@ up "Charizard" (proves the key against a name their catalog surely
 has) and, on sample fallback, quotes the provider's actual reason
 verbatim. Rule going forward: a failure message repeats what the other
 side actually said, never a guessed cause.
+#42 — Price matching tells the truth (Jen's live tests, 2026-11-11).
+Her scan of the 30th Celebration UPC quoted $1,495.75 — the CASE price:
+the matcher fell back to the first search result when nothing matched
+exactly. Her kids sell the single UPC for ~$400. Fixes: (1) no silent
+first-result fallback — exact/contains wins, else token overlap ≥ 0.7,
+else the scanner shows up to 3 choices ("Which one is it?") and
+Inventory leaves the price untouched and reports the miss; (2) a CASE
+never matches a name that doesn't say case; (3) hyphens vanish in
+normalization (their catalog writes "ultrapremium"); (4) shop slang
+expands before searching — upc → ultra premium collection, etb → elite
+trainer box — because "30th celebration upc" otherwise finds NOTHING
+in their library (the product is there, filed as "30th Celebration
+Ultra-Premium Collection"); (5) store.refreshMarketPrice no longer
+saves SAMPLE or uncertain prices into a product's market price — it
+had been writing them. Also confirmed from her screenshots + the
+pg_net log: Charizard $4.11 real, 151 ETB $493.08 real (exact name
+"151 Elite Trainer Box" — the long "Scarlet & Violet …" form returns
+zero results from their search).

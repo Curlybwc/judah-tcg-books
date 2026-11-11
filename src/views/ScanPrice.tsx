@@ -45,7 +45,27 @@ export default function ScanPrice({ go }: { go: (v: View) => void }) {
         </div>
       )}
 
-      {step === 2 && result && (
+      {step === 2 && result && result.choices && (
+        <div>
+          <p className="text-white font-black text-lg mb-1">Which one is it?</p>
+          <p className="text-slate-400 text-sm mb-4">The price list has more than one “{name}”. Tap the right one — prices differ a lot between a single box and a case.</p>
+          <div className="grid gap-3 mb-4">
+            {result.choices.map((c, i) => (
+              <button key={i} onClick={() => setResult(c)} className="flex items-center gap-3 rounded-2xl bg-slate-800 border border-slate-700 p-3 text-left">
+                {c.imageUrl && <img src={c.imageUrl} alt={c.matchedName ?? ""} className="w-14 h-14 rounded-xl object-cover bg-slate-700" />}
+                <span className="flex-1">
+                  <span className="block text-white font-bold">{c.matchedName}</span>
+                  <span className="block text-slate-400 text-sm">Tap to use this price</span>
+                </span>
+                <span className="text-xl font-black text-white">{money(c.price)}</span>
+              </button>
+            ))}
+          </div>
+          <BigButton color="slate" onClick={() => { setStep(0); setResult(null); setName(""); }}>Scan another</BigButton>
+        </div>
+      )}
+
+      {step === 2 && result && !result.choices && (
         <div>
           <div className="rounded-3xl bg-slate-800 border border-slate-700 p-6 text-center mb-4">
             <p className="text-slate-300 font-semibold">{name}</p>
@@ -53,7 +73,7 @@ export default function ScanPrice({ go }: { go: (v: View) => void }) {
             {result.imageUrl && <img src={result.imageUrl} alt={result.matchedName ?? name} className="mx-auto mt-3 w-40 h-40 rounded-2xl object-cover bg-slate-700" />}
             {result.matchedName && !result.isSample && <p className="text-slate-400 text-sm mt-2">Matched: {result.matchedName}</p>}
             <p className="mt-3">{result.isSample ? <Chip tone="amber">SAMPLE PRICE — demo only, not a real market price</Chip> : <Chip tone="green">{result.provider}</Chip>}</p>
-            {result.isSample && <p className="text-slate-400 text-sm mt-2">Real prices turn on when the free TCG API key is pasted in — Account screen, "Real prices" section.</p>}
+            {result.isSample && <p className="text-slate-400 text-sm mt-2">{result.provider}</p>}
           </div>
           <div className="grid gap-3">
             <BigButton onClick={() => go("buy")}>🛒 I bought this</BigButton>

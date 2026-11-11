@@ -26,7 +26,7 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
   const [priceBusy, setPriceBusy] = useState(false);
   const [priceMsg, setPriceMsg] = useState<string | null>(null);
   const [allProgress, setAllProgress] = useState<string | null>(null);
-  const [sessionSample, setSessionSample] = useState<Record<string, boolean>>({});
+
   const [photoBusy, setPhotoBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const pendingPhotoProduct = useRef<string | null>(null);
@@ -53,8 +53,9 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     const r = await refreshMarketPrice(g.productId, g.name);
     setPriceBusy(false);
     if (r) {
-      setSessionSample((m) => ({ ...m, [g.productId!]: r.isSample }));
-      setPriceMsg(r.isSample ? `${g.name}: ${r.price} — SAMPLE price (add the price key in Account for real market prices).` : `${g.name}: market price ${r.price} ✓`);
+      if (r.choices) setPriceMsg(`${g.name}: no sure match, so the price was left as-is. Price Scanner will let you pick the right one.`);
+      else if (r.isSample) setPriceMsg(`${g.name}: ${r.provider} (nothing saved)`);
+      else setPriceMsg(`${g.name}: market price ${r.price} ✓`);
     }
   }
 
@@ -62,14 +63,18 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     const targets = groups.filter((g) => g.productId && g.lots.reduce((a, l) => a + l.qty_on_hand, 0) > 0);
     if (!targets.length || priceBusy) return;
     setPriceBusy(true); setPriceMsg(null);
-    let done = 0; let anySample = false;
+    let updated = 0; let noMatch = 0; let sampled = 0; let n = 0;
     for (const g of targets) {
-      setAllProgress(`💲 Checking prices… ${done + 1} of ${targets.length}`);
+      n++;
+      setAllProgress(`💲 Checking prices… ${n} of ${targets.length}`);
       const r = await refreshMarketPrice(g.productId!, g.name);
-      if (r) { setSessionSample((m) => ({ ...m, [g.productId!]: r.isSample })); if (r.isSample) anySample = true; done++; }
+      if (!r) continue;
+      if (r.choices) noMatch++;
+      else if (r.isSample) sampled++;
+      else updated++;
     }
     setAllProgress(null); setPriceBusy(false);
-    setPriceMsg(`Market prices updated for ${done} product${done === 1 ? "" : "s"}${anySample ? " — SAMPLE prices (add the price key in Account for real ones)" : ""}. ✓`);
+    setPriceMsg(`Prices updated for ${updated} product${updated === 1 ? "" : "s"}.` + (noMatch ? ` ${noMatch} had no sure match — left as-is.` : "") + (sampled ? ` ${sampled} came back sample — not saved.` : "") + " ✓");
   }
 
   async function findOnlinePhoto(productId: string, name: string) {
@@ -77,7 +82,8 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     setPhotoMsg(null);
     const r = await priceProvider.lookup(name);
     setPhotoBusy(false);
-    if (r.imageUrl) { await setProductImage(productId, r.imageUrl); setPhotoMsg("Online product photo added ✓"); }
+    const img = r.imageUrl ?? r.choices?.[0]?.imageUrl;
+    if (img) { await setProductImage(productId, img); setPhotoMsg("Online product photo added ✓"); }
     else setPhotoMsg(r.isSample ? "No online photo yet — that needs the real price key (Account screen). Your own photo always works." : "No online photo found for that name — try your own photo.");
   }
 
@@ -226,7 +232,7 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
                   {g.marketAt
                     ? <> · as of {new Date(g.marketAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</>
                     : <> · <span className="text-amber-300">on file, never checked</span></>}
-                  {(sessionSample[g.productId ?? ""] ?? !g.marketAt) && <> <Chip tone="amber">SAMPLE price</Chip></>}
+                  {!g.marketAt && <> <Chip tone="amber">SAMPLE price</Chip></>}
                 </p>
               ) : (
                 <p className="text-slate-500 text-sm mt-1">No market price yet — tap 💲 Look up price.</p>
