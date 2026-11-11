@@ -120,6 +120,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [userId, setUserId] = useState<string | null>(null);
   const userRef = useRef<{ id: string; email?: string | null } | null>(null);
   const [sets, setSets] = useState<BookSet[]>([]);
+  const setsRef = useRef<BookSet[]>([]);
+  useEffect(() => { setsRef.current = sets; }, [sets]);
   const [members, setMembers] = useState<BookMember[]>([]);
   const [currentSetId, setCurrentSetId] = useState<string | null>(SAMPLE_OWNER_ID);
   const [ownerId, setOwnerId] = useState<string>(SAMPLE_OWNER_ID);
@@ -286,7 +288,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     for (const op of ops) {
       try {
         if (op.kind === "insert") {
-          const r = await supabase.from(op.table).insert(op.row as never);
+          // A queued row still names the set it was written in. If that set is
+          // gone (deleted, or the demo books before sign-in), the row can never
+          // land — re-point it at the set that's open now (DECISIONS #33).
+          let row = op.row as Record<string, unknown>;
+          const oid = row?.owner_id;
+          if (typeof oid === "string" && oid !== ownerRef.current
+            && setsRef.current.some((x) => x.id === ownerRef.current)
+            && !setsRef.current.some((x) => x.id === oid)) {
+            row = { ...row, owner_id: ownerRef.current };
+          }
+          const r = await supabase.from(op.table).insert(row as never);
           if (r.error && r.error.code !== "23505") throw r.error;
         } else if (op.kind === "lotDelta") {
           const cur = await supabase.from("inventory_lots").select("qty_on_hand").eq("id", op.lotId).single();

@@ -363,3 +363,27 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     demo entry → she gives Judah the code → he signs in with his own Google
     and joins. After the claim, migration 002's anon demo policies can be
     dropped (the demo set will be empty).
+
+#33 — Pirate Ship shipping import + stuck-sync repair (Jen, 2026-11-10).
+Jen's question — Pirate Ship DOES export the label history: Ship page →
+blank search → Shipments grid → Columns (turn on Order ID + cost) →
+Export downloads one row per label with order number, recipient,
+tracking and exact postage cost. Built into the Sell flow's "Shipping you
+paid" step: "🚢 Fill from a Pirate Ship export" parses the file
+(src/lib/pirateship.ts; generous header aliases), totals postage per
+TCGplayer order number (split shipments sum), falls back to buyer-name
+matching when a label carries no order number, and pre-fills each order's
+shipping paid (chip: "🚢 from Pirate Ship"; any manual edit clears the
+chip). Unmatched labels are reported, never silently dropped; orders
+with no label keep the stamp/envelope presets. Sample file at
+/sample-pirateship.csv; tests in scripts/test-pirateship.mjs.
+SAME PASS, the stuck-sync repair: Jen had 3 items "waiting to sync" that
+could never land — outbox rows are stored with the set they were written
+in, and that set (her first Bahr TCG, or the demo books) no longer
+existed, so every retry failed its membership check silently. runOps now
+re-points a queued insert at the currently open set when its recorded
+set is not one of the user's sets anymore. (This is also what stranded
+the Ascended Heroes mini tins buy mid-save: the product landed, the
+purchase + stock rows queued against a set that was deleted minutes
+later; after this fix the queue drains into the open set and the buy
+completes.)
