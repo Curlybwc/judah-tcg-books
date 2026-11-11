@@ -575,3 +575,17 @@ Muse prices off TCGplayer and writes back; she refreshes and sees
 them. The Ezzie tandem shape, in Judah's app: the API path stays for
 quick single lookups; Muse is the accuracy path for Judah's own
 shorthand names, which defeat automated matching.
+#49 — Sales import speaks the REAL TCGplayer export (2026-11-11,
+Jen's file TCGplayer_OrderList_20261111_145632.csv). The export TCGplayer
+actually gives is an order LIST — Order #, Buyer Name, Order Date
+("Saturday, 31 October 2026"), Status, Product Amt, Shipping Amt,
+Total Amt, Buyer Paid — one row per order, NO product lines. The app
+was built for a line-item file that doesn't exist; it also would have
+mistaken "Buyer Name" for the product column. Fix: detect the order-list
+shape and import orders with their totals; the match step becomes
+"which product was this?" — product picker, quantity stepper (unit
+price = total ÷ qty), editable price, and a split button for
+multi-product orders (extra rows carry $0 shipping charged). Cancelled/
+refunded orders are skipped and counted in the note. The file proves
+the money; Judah supplies the what — the same trust split as photo ID.
+Her file, verified by running the parser on it: 31 importable orders, product totals $6,993.06; 2 cancelled/refunded rows skipped; dates parse (weekday prefix stripped).

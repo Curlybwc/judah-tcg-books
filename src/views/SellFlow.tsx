@@ -19,6 +19,7 @@ interface Row {
   buyerName: string;
   soldOn: string;
   lotId: string; // "" = unmatched
+  orderTotal?: number; // set when the row came from TCGplayer's order-LIST export (totals only, no product lines)
 }
 
 function norm(s: string): string {
@@ -53,6 +54,8 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
   const psRef = useRef<HTMLInputElement>(null);
   const [psNote, setPsNote] = useState<{ tone: "green" | "amber" | "red"; text: string } | null>(null);
   const [psFilled, setPsFilled] = useState<Set<string>>(new Set());
+  const [fileNote, setFileNote] = useState<string | null>(null);
+  const keyRef = useRef(1000);
 
   function handlePsFile(file: File) {
     Papa.parse<Record<string, string>>(file, {
@@ -95,7 +98,41 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
       complete: (res) => {
         try {
           const headers = res.meta.fields ?? [];
-          const fName = pickField(headers, ["product", "item", "name"]);
+          const lower = headers.map((h) => h.toLowerCase().trim());
+          // TCGplayer's real Orders export is an order LIST: one row per
+          // order with a Product Amt total — no product lines at all
+          // (DECISIONS #49, from Jen's actual file). Judah tells us which
+          // product each order was; the file proves the money.
+          const isOrderList = lower.some((h) => h.startsWith("order #")) && lower.some((h) => h.includes("product amt"));
+          if (isOrderList) {
+            const col = (want: string) => headers[lower.findIndex((h) => h.includes(want))];
+            const fO = col("order #"), fD = col("order date"), fSt = col("status"), fB = col("buyer name");
+            const fPA = col("product amt"), fSA = col("shipping amt");
+            let skipped = 0;
+            const parsed: Row[] = [];
+            res.data.forEach((r, i) => {
+              const oid = (r[fO] ?? "").trim();
+              if (!oid) return;
+              if (/cancel|refund/i.test(r[fSt] ?? "")) { skipped++; return; }
+              const total = parseFloat(r[fPA] ?? "0") || 0;
+              parsed.push({
+                key: i, orderId: oid, productName: "", qty: 1, unitPrice: total,
+                shippingCharged: parseFloat(r[fSA] ?? "0") || 0,
+                buyerName: (r[fB] ?? "").trim(),
+                soldOn: fD && r[fD] ? toISODate(r[fD]) : new Date().toISOString().slice(0, 10),
+                lotId: "", orderTotal: total,
+              });
+            });
+            if (!parsed.length) { setParseError("That file has the right shape but no orders in it — check the date range you picked when you exported."); return; }
+            setFileNote(`This is TCGplayer's order list: ${parsed.length} orders with totals, but it doesn't say which products they were. On the next step you pick the product (and how many) for each order — the amounts are already filled in.${skipped ? ` ${skipped} cancelled/refunded order${skipped === 1 ? " was" : "s were"} left out.` : ""}`);
+            setRows(parsed);
+            const sp: Record<string, string> = {};
+            parsed.forEach((r) => { if (!(r.orderId in sp)) sp[r.orderId] = ""; });
+            setShipPaid(sp);
+            setStep(1);
+            return;
+          }
+          const fName = pickField(headers.filter((h) => !/buyer/i.test(h)), ["product", "item", "name"]);
           const fQty = pickField(headers, ["quantity", "qty"]);
           const fPrice = pickField(headers, ["price", "amount"]);
           const fShip = pickField(headers, ["shipping"]);
@@ -203,8 +240,8 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
           <div className="rounded-2xl bg-slate-800 border border-slate-700 p-4 mb-4 text-slate-300 text-sm leading-relaxed">
             <p className="font-bold text-white text-base mb-1">How to get the file</p>
             <p>1. Open TCGplayer → Seller Portal → Orders.</p>
-            <p>2. Tap Export / Download CSV.</p>
-            <p>3. Come back here and upload it.</p>
+            <p>2. Tap Export — you get a file named TCGplayer_OrderList…</p>
+            <p>3. Come back here and upload it. It lists each order's total; you'll say which product each one was.</p>
           </div>
           <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
           <BigButton onClick={() => fileRef.current?.click()}>📤 Upload the orders file</BigButton>
@@ -216,14 +253,28 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
 
       {step === 1 && (
         <div>
-          <p className="text-slate-300 mb-3">Check each sale is matched to the right product from your stock. Fix any that are wrong.</p>
+          {fileNote
+            ? <p className="text-slate-300 mb-3 rounded-xl bg-sky-900/40 border border-sky-700/60 px-4 py-3">{fileNote}</p>
+            : <p className="text-slate-300 mb-3">Check each sale is matched to the right product from your stock. Fix any that are wrong.</p>}
           <div className="grid gap-3 mb-4">
             {rows.map((r, i) => {
               const lot = lotById.get(r.lotId);
               return (
                 <div key={r.key} className="rounded-2xl bg-slate-800 border border-slate-700 p-4">
-                  <p className="text-white font-bold">{r.productName}</p>
-                  <p className="text-slate-400 text-sm">Order {r.orderId} · {r.qty} × {money(r.unitPrice)} · shipping charged {money(r.shippingCharged)}</p>
+                  <p className="text-white font-bold">{r.productName || (lot ? productName(lot) : "Which product was this?")}</p>
+                  <p className="text-slate-400 text-sm">Order {r.orderId}{r.buyerName ? ` · ${r.buyerName}` : ""} · {r.qty} × {money(r.unitPrice)} · shipping charged {money(r.shippingCharged)}{r.orderTotal != null ? ` · TCGplayer product total ${money(r.orderTotal)}` : ""}</p>
+                  {r.orderTotal != null && (
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <span className="text-slate-400 text-sm">How many?</span>
+                      <button onClick={() => { const q = Math.max(1, r.qty - 1); const next = [...rows]; next[i] = { ...r, qty: q, unitPrice: Math.round((r.orderTotal! / q) * 100) / 100 }; setRows(next); }} className="rounded-lg bg-slate-700 text-white px-3 py-1.5 font-bold">−</button>
+                      <span className="text-white font-bold w-6 text-center">{r.qty}</span>
+                      <button onClick={() => { const q = r.qty + 1; const next = [...rows]; next[i] = { ...r, qty: q, unitPrice: Math.round((r.orderTotal! / q) * 100) / 100 }; setRows(next); }} className="rounded-lg bg-slate-700 text-white px-3 py-1.5 font-bold">+</button>
+                      <span className="text-slate-400 text-sm">at</span>
+                      <input className="w-24 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 px-2 py-1.5" inputMode="decimal" value={r.unitPrice} onChange={(e) => { const next = [...rows]; next[i] = { ...r, unitPrice: parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 0 }; setRows(next); }} />
+                      <span className="text-slate-400 text-sm">each</span>
+                      <button onClick={() => { const next = [...rows]; next.splice(i + 1, 0, { ...r, key: ++keyRef.current, qty: 1, unitPrice: 0, shippingCharged: 0, lotId: "", orderTotal: undefined, productName: "" }); setRows(next); }} className="ml-auto text-sky-300 text-sm underline">＋ another product in this order</button>
+                    </div>
+                  )}
                   <div className="mt-2">
                     <select className={inputCls} value={r.lotId} onChange={(e) => { const next = [...rows]; next[i] = { ...r, lotId: e.target.value }; setRows(next); }}>
                       <option value="">— Pick which stock this came from —</option>
@@ -319,7 +370,7 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
 }
 
 function toISODate(s: string): string {
-  const d = new Date(s);
+  const d = new Date(s.replace(/^[^,]+,\s*/, ""));
   if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
   return d.toISOString().slice(0, 10);
 }
