@@ -208,6 +208,7 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
           </div>
           <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
           <BigButton onClick={() => fileRef.current?.click()}>📤 Upload the orders file</BigButton>
+          <p className="text-slate-400 text-sm mt-3">🚢 Have a Pirate Ship file too? It comes later — on the <b className="text-slate-200">Shipping you paid</b> step, after you match the sales.</p>
           {parseError && <p className="mt-3 rounded-xl bg-rose-900/50 border border-rose-700 text-rose-200 px-4 py-3">{parseError}</p>}
           <p className="text-slate-500 text-sm mt-4">No file handy? <a className="underline text-slate-300" href="/sample-orders.csv" download>Download the sample orders file</a> and upload it here to practice.</p>
         </div>
