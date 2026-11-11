@@ -80,7 +80,7 @@ interface Store {
   deleteLoan: (id: string) => Promise<void>;
   addLoanPayment: (loanId: string, amount: number, paidOn: string, note: string) => Promise<void>;
   deleteLoanPayment: (id: string) => Promise<void>;
-  refreshMarketPrice: (productId: string, name: string) => Promise<PriceResult | null>;
+  refreshMarketPrice: (productId: string, name: string, fresh?: boolean) => Promise<PriceResult | null>;
   applyIdentified: (productId: string, name: string, price: number) => Promise<boolean>;
   addExpense: (amount: number, spentOn: string, category: ExpenseCategory, note: string) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
@@ -603,8 +603,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     applyLocal((d) => ({ ...d, loanPayments: d.loanPayments.filter((p) => p.id !== id) }));
   }, [applyLocal]);
 
-  const refreshMarketPrice: Store["refreshMarketPrice"] = useCallback(async (productId, name) => {
-    const r = await priceProvider.lookup(name);
+  const refreshMarketPrice: Store["refreshMarketPrice"] = useCallback(async (productId, name, fresh = false) => {
+    const r = await priceProvider.lookup(name, { fresh });
     // Only a confident REAL price is saved (DECISIONS #42). A sample, a
     // pick-from-choices result, or a miss leaves the saved price untouched.
     if (r.isSample || r.choices || !(r.price > 0)) return r;

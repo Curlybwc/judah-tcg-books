@@ -532,3 +532,12 @@ one-tap rename; choices: pick free, with "none of these — use a photo
 scan" as the escape; no match: the panel says so and offers the scan
 as an explicit spend. Scans are spent only on a deliberate tap after
 the free path fails.
+#45 — Prices can always be re-searched (Jen, 2026-11-11). Problem she
+hit: once a price was saved, "searching again" silently returned the
+12h cache — prices change daily, so an Update that doesn't re-ask is
+broken. Fixes: priceProvider.lookup takes {fresh} — explicit price
+taps bypass the cache (incidental lookups still cache); ONE button at
+the very top of Inventory, "💲 Update prices," refreshes every in-stock
+product (the old mid-page Look-up-all button is gone); a run searches
+each product NAME once — duplicates and extra lots reuse the first
+result instead of re-searching.

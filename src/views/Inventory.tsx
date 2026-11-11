@@ -95,7 +95,7 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
   async function lookupOne(g: { productId: string | null; name: string }) {
     if (!g.productId || priceBusy) return;
     setPriceBusy(true); setPriceMsg(null);
-    const r = await refreshMarketPrice(g.productId, g.name);
+    const r = await refreshMarketPrice(g.productId, g.name, true);
     setPriceBusy(false);
     if (r) {
       if (r.choices) setPriceMsg(`${g.name}: no sure match, so the price was left as-is. Price Scanner will let you pick the right one.`);
@@ -109,14 +109,23 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     if (!targets.length || priceBusy) return;
     setPriceBusy(true); setPriceMsg(null);
     let updated = 0; let noMatch = 0; let sampled = 0; let n = 0;
+    const seen = new Map<string, "updated" | "noMatch" | "sampled">();
     for (const g of targets) {
       n++;
-      setAllProgress(`💲 Checking prices… ${n} of ${targets.length}`);
-      const r = await refreshMarketPrice(g.productId!, g.name);
+      setAllProgress(`Searching for market prices… ${n} of ${targets.length}`);
+      // Same product under several rows/lots: search ONCE per run (Jen,
+      // 2026-11-11). A repeat name reuses the first result — a confident
+      // price comes straight from the just-written cache; a miss is not
+      // re-searched.
+      const key = g.name.trim().toLowerCase();
+      const prior = seen.get(key);
+      if (prior === "noMatch") { noMatch++; continue; }
+      if (prior === "sampled") { sampled++; continue; }
+      const r = await refreshMarketPrice(g.productId!, g.name, prior !== "updated");
       if (!r) continue;
-      if (r.choices) noMatch++;
-      else if (r.isSample) sampled++;
-      else updated++;
+      if (r.choices) { noMatch++; seen.set(key, "noMatch"); }
+      else if (r.isSample) { sampled++; seen.set(key, "sampled"); }
+      else { updated++; seen.set(key, "updated"); }
     }
     setAllProgress(null); setPriceBusy(false);
     setPriceMsg(`Prices updated for ${updated} product${updated === 1 ? "" : "s"}.` + (noMatch ? ` ${noMatch} had no sure match — left as-is.` : "") + (sampled ? ` ${sampled} came back sample — not saved.` : "") + " ✓");
@@ -183,6 +192,9 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     <div>
       <ScreenTitle title="📦 Inventory" sub={`${totalUnits} items in stock. (Your personal collection stays in Collectr — this is only for-sale stock.)`} />
       <div className="mb-3">
+        <BigButton onClick={() => void lookupAll()} disabled={priceBusy}>{allProgress ?? "💲 Update prices"}</BigButton>
+      </div>
+      <div className="mb-3">
         <BigButton onClick={() => go("buy")}>＋ Add inventory — I bought product</BigButton>
       </div>
       <button onClick={() => go("quickadd")} className="w-full mb-3 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-bold">⚡ Quick Add — bought several things at once</button>
@@ -234,11 +246,6 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
       )}
 
       {!editMode && editMsg && <p className="text-emerald-300 text-sm font-semibold mb-3">{editMsg}</p>}
-      {!editMode && (
-        <button onClick={() => void lookupAll()} disabled={priceBusy} className="w-full rounded-2xl bg-slate-800 border border-slate-700 py-3 font-bold text-slate-200 mb-3 disabled:opacity-50">
-          {allProgress ?? "💲 Look up all market prices"}
-        </button>
-      )}
       {!editMode && priceMsg && <p className="text-emerald-300 text-sm font-semibold mb-3">{priceMsg}</p>}
       <input ref={identifyRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => void onIdentifyFile(e)} />
       {!editMode && identifyBusy && <p className="text-slate-300 text-sm font-semibold mb-3">🔎 Checking… give it a few seconds.</p>}

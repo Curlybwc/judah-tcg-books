@@ -13,7 +13,7 @@ export interface PriceResult {
 }
 
 export interface PriceProvider {
-  lookup(name: string): Promise<PriceResult>;
+  lookup(name: string, opts?: { fresh?: boolean }): Promise<PriceResult>;
 }
 
 // Sample catalog (approximate market prices for demo only — NOT real market data).
@@ -143,10 +143,12 @@ function pickMatch(name: string, items: TcgApiItem[]): { pick?: TcgApiItem; choi
 interface TcgApiItem { name?: string; market_price?: number | null; image_url?: string | null; product_type?: string }
 
 class TcgApiPriceProvider implements PriceProvider {
-  async lookup(name: string): Promise<PriceResult> {
+  async lookup(name: string, opts?: { fresh?: boolean }): Promise<PriceResult> {
     const key = getPriceApiKey();
     if (!key) return SAMPLE.lookup(name);
-    const cached = readCache(name);
+    // Prices change daily: an explicit Update/Search tap passes fresh and
+    // skips the 12h cache (DECISIONS #45). Incidental lookups still cache.
+    const cached = opts?.fresh ? null : readCache(name);
     if (cached !== null) return { price: cached, provider: "TCG API — real market price", isSample: false };
     try {
       // The price service's CORS policy only allows its own website, so the
