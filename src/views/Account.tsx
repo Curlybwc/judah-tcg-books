@@ -3,6 +3,7 @@ import { useStore } from "../lib/store";
 import { getPriceApiKey, priceProvider, setPriceApiKey } from "../lib/priceProvider";
 import { money } from "../lib/math";
 import { BigButton, Field, inputCls, ScreenTitle } from "../components/ui";
+import SetsSection from "./Sets";
 
 function PriceKeySection() {
   const [key, setKey] = useState(getPriceApiKey());
@@ -75,6 +76,7 @@ export default function Account() {
         <ScreenTitle title="👤 Account" sub={`Signed in as ${userEmail}`} />
         <p className="text-slate-300 mb-4">Your books are saved to your own account in the cloud.</p>
         <BigButton color="slate" onClick={() => void signOut()}>Sign out</BigButton>
+        <SetsSection />
         <PriceKeySection />
       </div>
     );

@@ -106,3 +106,23 @@ export interface GiovanniPayment {
 
 // A repayment from Judah to Mom (Jen) against the owed-to-Mom ledger.
 export type MomPayment = GiovanniPayment;
+
+// Shared sets of books (DECISIONS #32): data rows' owner_id names a set;
+// people hold memberships. The demo books are the set whose id is the old
+// sample-owner UUID, with no owner and no members.
+export interface BookSet {
+  id: string;
+  name: string;
+  owner_user_id: string | null;
+  join_code: string;
+  created_at?: string;
+}
+
+export interface BookMember {
+  id: string;
+  set_id: string;
+  user_id: string;
+  email: string | null;
+  role: "owner" | "member";
+  joined_at?: string;
+}

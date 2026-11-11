@@ -336,3 +336,30 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     sign-in. Migration of his rows is pre-written:
     scripts/move-books-to-user.sql (re-tag owner, run once his auth user
     exists; then drop 002's demo policies per the original plan).
+
+32. **Shared sets of books (Jen, 2026-11-10).** Jen: she will not sign in as
+    Judah (his Google isn't on her phone); books must be shareable — she
+    invites him to HER set, a person can belong to several sets, and a
+    dropdown switches between them. Built (migrations 011 + 012): book_sets
+    (name, owner, 8-character join code) + book_members; **owner_id on every
+    data row now names a set**, and all eleven authenticated policies moved
+    from "owner is me" to "I belong to the set that owns this" via the
+    security-definer is_book_member(). Joining is the join_book_set() RPC —
+    the code is the credential; reset_join_code() is owner-only. The demo
+    books became a set (id = the old sample UUID, no owner, no members), so
+    demo mode behaves exactly as before. App: boot resolves the current set
+    from memberships (last-used remembered); the header shows the set name
+    or, with several sets, the switcher dropdown; a signed-in user with no
+    set lands on a create/join gate; Account carries the sets manager
+    (codes, rosters, remove/leave). Two-user caller proofs passed (member
+    sees + writes; non-member sees 0 rows and is refused writes into other
+    sets; lowercase codes join; non-owner code reset refused; anon unchanged)
+    — including one real bug they caught and 012 fixed (the join function's
+    OUT column name collided with a table column). Known accepted corners:
+    members can read their set's join code from the data (the UI shows it
+    only to the owner; the owner can reset it), and product-photo storage
+    stays bucket-wide as it has been since #25. Cutover: Jen signs in →
+    scripts/claim-demo-books.sql makes her the owner of a set holding every
+    demo entry → she gives Judah the code → he signs in with his own Google
+    and joins. After the claim, migration 002's anon demo policies can be
+    dropped (the demo set will be empty).

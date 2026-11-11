@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { SAMPLE_OWNER_ID } from "./config";
-import type { Expense, ExpenseCategory, GiovanniPayment, Lot, MomPayment, Product, Purchase, Sale, Show } from "./types";
+import type { BookMember, BookSet, Expense, ExpenseCategory, GiovanniPayment, Lot, MomPayment, Product, Purchase, Sale, Show } from "./types";
 import { blobToDataUrl, compressImageFile } from "./photos";
 import { momProfitShare, purchaseMath, quickSaleMath, saleMath, taxFromRate } from "./math";
 
@@ -52,6 +52,16 @@ interface Store {
   remote: boolean; // true = data is coming from Supabase; false = on-phone fallback
   notice: string | null;
   userEmail: string | null;
+  userId: string | null;
+  sets: BookSet[];
+  members: BookMember[];
+  currentSetId: string | null;
+  switchSet: (setId: string) => Promise<void>;
+  createSet: (name: string) => Promise<string | null>;
+  joinSet: (code: string) => Promise<string | null>;
+  resetJoinCode: (setId: string) => Promise<string | null>;
+  removeMember: (setId: string, userId: string) => Promise<string | null>;
+  leaveSet: (setId: string) => Promise<string | null>;
   ownerId: string;
   products: Product[];
   purchases: Purchase[];
@@ -107,6 +117,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [remote, setRemote] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const userRef = useRef<{ id: string; email?: string | null } | null>(null);
+  const [sets, setSets] = useState<BookSet[]>([]);
+  const [members, setMembers] = useState<BookMember[]>([]);
+  const [currentSetId, setCurrentSetId] = useState<string | null>(SAMPLE_OWNER_ID);
   const [ownerId, setOwnerId] = useState<string>(SAMPLE_OWNER_ID);
   const remoteRef = useRef(false);
   const ownerRef = useRef(SAMPLE_OWNER_ID);
@@ -142,23 +157,116 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setReady(true);
   }, []);
 
+  // Resolve who is looking and which set of books they are looking at
+  // (DECISIONS #32). Signed out: the demo set. Signed in: the current set
+  // from their memberships — owner_id on data rows is a SET id now.
+  const boot = useCallback(async (user: { id: string; email?: string | null } | null) => {
+    setUserEmail(user?.email ?? null);
+    setUserId(user?.id ?? null);
+    userRef.current = user;
+    if (!user) {
+      setSets([]); setMembers([]); setCurrentSetId(SAMPLE_OWNER_ID);
+      setOwnerId(SAMPLE_OWNER_ID); ownerRef.current = SAMPLE_OWNER_ID;
+      await load(SAMPLE_OWNER_ID);
+      return;
+    }
+    try {
+      const mem = await supabase.from("book_members").select("set_id, role").eq("user_id", user.id);
+      if (mem.error) throw mem.error;
+      const ids = (mem.data ?? []).map((m) => m.set_id as string);
+      if (!ids.length) {
+        // Signed in but in no set yet: the gate screen offers create/join.
+        setSets([]); setMembers([]); setCurrentSetId(null);
+        setOwnerId(""); ownerRef.current = "";
+        setData({ products: [], purchases: [], lots: [], sales: [], payments: [], shows: [], momPayments: [], expenses: [] });
+        setRemote(true); remoteRef.current = true; setReady(true);
+        return;
+      }
+      const [bs, all] = await Promise.all([
+        supabase.from("book_sets").select("*").in("id", ids),
+        supabase.from("book_members").select("*").in("set_id", ids),
+      ]);
+      if (bs.error) throw bs.error;
+      const list = (bs.data ?? []) as BookSet[];
+      setSets(list); setMembers((all.data ?? []) as BookMember[]);
+      const saved = localStorage.getItem("jtb-current-set");
+      const pick = list.find((s) => s.id === saved) ?? list[0];
+      setCurrentSetId(pick.id); setOwnerId(pick.id); ownerRef.current = pick.id;
+      await load(pick.id);
+    } catch {
+      // Sets list unreachable: fall back to the pre-sets behavior for this user.
+      setSets([]); setMembers([]); setCurrentSetId(null);
+      setOwnerId(user.id); ownerRef.current = user.id;
+      await load(user.id);
+    }
+  }, [load]);
+
   useEffect(() => {
     (async () => {
       const { data: sess } = await supabase.auth.getSession();
-      const user = sess.session?.user;
-      if (user) { setUserEmail(user.email ?? null); setOwnerId(user.id); ownerRef.current = user.id; await load(user.id); }
-      else await load(SAMPLE_OWNER_ID);
+      await boot(sess.session?.user ?? null);
       if (outboxRef.current.length) void syncRef.current(); // push anything queued while offline
     })();
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      const user = session?.user;
-      setUserEmail(user?.email ?? null);
-      const oid = user?.id ?? SAMPLE_OWNER_ID;
-      setOwnerId(oid); ownerRef.current = oid;
-      void load(oid);
+      void boot(session?.user ?? null);
     });
     return () => sub.subscription.unsubscribe();
+  }, [boot]);
+
+  const switchSet: Store["switchSet"] = useCallback(async (setId) => {
+    localStorage.setItem("jtb-current-set", setId);
+    setCurrentSetId(setId); setOwnerId(setId); ownerRef.current = setId;
+    await load(setId);
   }, [load]);
+
+  const createSet: Store["createSet"] = useCallback(async (name) => {
+    const user = userRef.current;
+    if (!user) return "Sign in first.";
+    if (name.trim().length < 2) return "Give the set of books a name.";
+    const ins = await supabase.from("book_sets").insert({ name: name.trim(), owner_user_id: user.id }).select("*").single();
+    if (ins.error) return ins.error.message;
+    const set = ins.data as BookSet;
+    const memIns = await supabase.from("book_members").insert({ set_id: set.id, user_id: user.id, email: user.email ?? null, role: "owner" });
+    if (memIns.error) return memIns.error.message;
+    localStorage.setItem("jtb-current-set", set.id);
+    await boot(user);
+    return null;
+  }, [boot]);
+
+  const joinSet: Store["joinSet"] = useCallback(async (code) => {
+    const user = userRef.current;
+    if (!user) return "Sign in first.";
+    const r = await supabase.rpc("join_book_set", { p_code: code });
+    if (r.error) return r.error.message;
+    const row = (r.data as { joined_set_id: string }[] | null)?.[0];
+    if (row) localStorage.setItem("jtb-current-set", row.joined_set_id);
+    await boot(user);
+    return null;
+  }, [boot]);
+
+  const resetJoinCode: Store["resetJoinCode"] = useCallback(async (setId) => {
+    const r = await supabase.rpc("reset_join_code", { p_set: setId });
+    if (r.error) return r.error.message;
+    if (userRef.current) await boot(userRef.current);
+    return null;
+  }, [boot]);
+
+  const removeMember: Store["removeMember"] = useCallback(async (setId, memberUserId) => {
+    const d = await supabase.from("book_members").delete().eq("set_id", setId).eq("user_id", memberUserId);
+    if (d.error) return d.error.message;
+    if (userRef.current) await boot(userRef.current);
+    return null;
+  }, [boot]);
+
+  const leaveSet: Store["leaveSet"] = useCallback(async (setId) => {
+    const user = userRef.current;
+    if (!user) return "Sign in first.";
+    const d = await supabase.from("book_members").delete().eq("set_id", setId).eq("user_id", user.id);
+    if (d.error) return d.error.message;
+    localStorage.removeItem("jtb-current-set");
+    await boot(user);
+    return null;
+  }, [boot]);
 
   const applyLocal = useCallback((fn: (d: LocalData) => LocalData) => {
     setData((prev) => { const next = fn(prev); if (!remoteRef.current) saveLocal(next); return next; });
@@ -562,7 +670,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const totalProfit = useMemo(() => Math.round(data.sales.reduce((s, x) => s + Number(x.profit), 0) * 100) / 100, [data.sales]);
 
   const value: Store = {
-    ready, remote, notice, userEmail, ownerId,
+    ready, remote, notice, userEmail, userId, sets, members, currentSetId, switchSet, createSet, joinSet, resetJoinCode, removeMember, leaveSet, ownerId,
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
     shows: data.shows, activeShow, pendingCount: outbox.length, syncNow, startShow, closeShow, recordQuickSale,
     momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, setProductImage, uploadProductPhoto, momOwed, addMomPayment, deleteMomPayment, bulkRemoveLots,
