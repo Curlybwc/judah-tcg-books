@@ -44,6 +44,11 @@ export default function Home({ go }: { go: (v: View) => void }) {
         </button>
       )}
 
+      <button onClick={() => void onCheckUpdates()} disabled={checking} className="w-full mb-4 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-semibold disabled:opacity-50">
+        {checking ? "🔄 Checking for updates…" : "🔄 Check for updates"}
+      </button>
+      {updateMsg && <p className="text-center text-sm text-emerald-300 font-semibold -mt-2 mb-3">{updateMsg}</p>}
+
       {pendingCount > 0 && (
         <button onClick={() => void syncNow()} className="w-full mb-4 rounded-2xl bg-sky-600 text-white py-3.5 font-bold">
           ☁️ {pendingCount} item{pendingCount === 1 ? "" : "s"} waiting to sync — tap to sync now
@@ -63,10 +68,6 @@ export default function Home({ go }: { go: (v: View) => void }) {
       </div>
 
       <button onClick={() => go("bank")} className="w-full mt-6 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-300 font-semibold">🏦 Bank (coming soon)</button>
-      <button onClick={() => void onCheckUpdates()} disabled={checking} className="w-full mt-3 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-300 font-semibold disabled:opacity-50">
-        {checking ? "🔄 Checking for updates…" : "🔄 Check for updates"}
-      </button>
-      {updateMsg && <p className="text-center text-sm text-emerald-300 font-semibold mt-2">{updateMsg}</p>}
       <p className="text-center text-xs text-slate-500 mt-4">
         {remote ? "Connected to your cloud books ✓" : "On-phone mode — books saved on this phone"}
       </p>
