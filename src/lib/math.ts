@@ -160,3 +160,21 @@ export function loanMath(loan: LoanLike, paidTotal: number): LoanMathResult {
   const owed = Math.max(0, round2(totalToRepay - paid));
   return { interestAmount, totalToRepay, paid, owed, paidOff: totalToRepay > 0 && owed <= 0 };
 }
+
+export interface FrontedSale { lot_id: string | null; shipping_paid: number; channel?: string | null }
+export interface LotKind { id: string; owner_kind: string }
+
+/** Shipping Judah fronted on GIOVANNI's product (DECISIONS #36, Jen's
+ *  ruling): Judah takes no cut of Giovanni's sales, but he must not eat
+ *  the postage either — shipping he paid on Giovanni-owned TCGplayer
+ *  sales is Giovanni's cost, owed back to Judah. Only the first row of
+ *  an order carries shipping_paid, so summing rows never double-counts. */
+export function frontedShipping(sales: FrontedSale[], lots: LotKind[]): number {
+  const kind = new Map(lots.map((l) => [l.id, l.owner_kind]));
+  let total = 0;
+  for (const s of sales) {
+    if (s.channel && s.channel !== "tcgplayer") continue;
+    if (s.lot_id && kind.get(s.lot_id) === "giovanni") total += Number(s.shipping_paid) || 0;
+  }
+  return round2(total);
+}

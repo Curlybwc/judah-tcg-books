@@ -14,7 +14,7 @@ cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
 cpSync(join(root, "src/lib/quickbuy.ts"), join(tmp, "quickbuy.ts"));
 cpSync(join(root, "src/lib/catalog.ts"), join(tmp, "catalog.ts"));
 execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "quickbuy.ts", "catalog.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
-const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
 const { parseQuickBuyLine, allocateShipping } = createRequire(import.meta.url)(join(tmp, "out/quickbuy.js"));
 const { UPC_CATALOG, normalizeBarcode, catalogLookup } = createRequire(import.meta.url)(join(tmp, "out/catalog.js"));
 
@@ -128,6 +128,17 @@ const ln = loanMath({ principal: 150, interest_type: "none", interest_value: 0 }
 eq("loan none interest", ln.interestAmount, 0); eq("loan paid off at exact", ln.paidOff ? 1 : 0, 1);
 const lo = loanMath({ principal: 100, interest_type: "none", interest_value: 0 }, 140);
 eq("loan overpay owed clamps to zero", lo.owed, 0); eq("loan overpay paid off", lo.paidOff ? 1 : 0, 1);
+
+// Fronted shipping (DECISIONS #36): shipping on Giovanni-owned TCGplayer
+// sales comes back to Judah; his own and split lots never count; show
+// sales never count.
+const fsLots = [{ id: "g1", owner_kind: "giovanni" }, { id: "m1", owner_kind: "mine" }, { id: "s1", owner_kind: "split" }];
+eq("fronted: giovanni TCG sale", frontedShipping([{ lot_id: "g1", shipping_paid: 5.5, channel: "tcgplayer" }], fsLots), 5.5);
+eq("fronted: own sale ignored", frontedShipping([{ lot_id: "m1", shipping_paid: 5.5, channel: "tcgplayer" }], fsLots), 0);
+eq("fronted: split sale ignored", frontedShipping([{ lot_id: "s1", shipping_paid: 5.5, channel: "tcgplayer" }], fsLots), 0);
+eq("fronted: show sale ignored", frontedShipping([{ lot_id: "g1", shipping_paid: 5.5, channel: "show_cash" }], fsLots), 0);
+eq("fronted: legacy channel-less sale counts", frontedShipping([{ lot_id: "g1", shipping_paid: 4.25, channel: null }], fsLots), 4.25);
+eq("fronted: sums across orders", frontedShipping([{ lot_id: "g1", shipping_paid: 5.5, channel: "tcgplayer" }, { lot_id: "g1", shipping_paid: 3.25, channel: "tcgplayer" }], fsLots), 8.75);
 
 console.log(fails === 0 ? "ALL MATH TESTS PASSED" : `${fails} FAILURES`);
 process.exit(fails ? 1 : 0);

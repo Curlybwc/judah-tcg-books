@@ -187,7 +187,8 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
       return [{ lot: c.lot, qty: r.qty, unitItemPrice: r.unitPrice, shippingCharged: r.shippingCharged, shippingPaid: c.firstInOrder ? parseFloat(shipPaid[r.orderId]) || 0 : 0, orderId: r.orderId, soldOn: r.soldOn, orderGroupFirst: c.firstInOrder }];
     });
     await recordSales(payload);
-    setResult({ collected: totals.share, owed: Math.round((giovanniOwed + totals.share) * 100) / 100 });
+    const fronted = computed.reduce((sum, c) => (c && c.firstInOrder && c.lot.owner_kind === "giovanni" ? sum + (parseFloat(shipPaid[c.row.orderId]) || 0) : sum), 0);
+    setResult({ collected: totals.share, owed: Math.round((giovanniOwed + totals.share + fronted) * 100) / 100 });
     setSaving(false);
     setStep(4);
   }

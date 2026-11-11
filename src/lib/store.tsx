@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { priceProvider, type PriceResult } from "./priceProvider";
+import { frontedShipping } from "./math";
 import { SAMPLE_OWNER_ID } from "./config";
 import type { BookMember, BookSet, Expense, ExpenseCategory, GiovanniPayment, Loan, LoanInput, LoanPayment, Lot, MomPayment, Product, Purchase, Sale, Show } from "./types";
 import { blobToDataUrl, compressImageFile } from "./photos";
@@ -85,6 +86,9 @@ interface Store {
   setProductImage: (productId: string, url: string) => Promise<void>;
   uploadProductPhoto: (productId: string, file: File) => Promise<boolean>;
   momOwed: number;
+  giovanniShare: number;
+  giovanniFronted: number;
+  giovanniOwnNet: number;
   addMomPayment: (amount: number, paidOn: string, note: string) => Promise<void>;
   deleteMomPayment: (id: string) => Promise<void>;
   bulkRemoveLots: (lots: Lot[]) => Promise<number>;
@@ -737,12 +741,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return Math.round((payback + shares - repaid) * 100) / 100;
   }, [data.purchases, data.sales, data.momPayments]);
 
+  const giovanniShare = useMemo(() => Math.round(data.sales.filter((x) => !x.channel || x.channel === "tcgplayer").reduce((s, x) => s + Number(x.judah_share), 0) * 100) / 100, [data.sales]);
+  const giovanniFronted = useMemo(() => frontedShipping(data.sales, data.lots), [data.sales, data.lots]);
+  const giovanniOwnNet = useMemo(() => {
+    const kind = new Map(data.lots.map((l) => [l.id, l.owner_kind]));
+    return Math.round(data.sales.filter((x) => (!x.channel || x.channel === "tcgplayer") && x.lot_id && kind.get(x.lot_id) === "giovanni").reduce((s, x) => s + Number(x.net_proceeds), 0) * 100) / 100;
+  }, [data.sales, data.lots]);
+
   const giovanniOwed = useMemo(() => {
     // Giovanni's balance is a TCGplayer-only number: he collects those payouts.
     // Show sales are cash/Venmo in Judah's own hand, so they never enter it.
     const share = data.sales.filter((x) => !x.channel || x.channel === "tcgplayer").reduce((s, x) => s + Number(x.judah_share), 0);
     const paid = data.payments.reduce((s, x) => s + Number(x.amount), 0);
-    return Math.round((share - paid) * 100) / 100;
+    const fronted = frontedShipping(data.sales, data.lots);
+    return Math.round((share + fronted - paid) * 100) / 100;
   }, [data.sales, data.payments]);
 
   // All-time profit across every sale (TCGplayer + shows) — the Home hero
@@ -753,7 +765,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     ready, remote, notice, userEmail, userId, sets, members, currentSetId, switchSet, createSet, joinSet, resetJoinCode, removeMember, leaveSet, ownerId,
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
     shows: data.shows, activeShow, pendingCount: outbox.length, syncNow, startShow, closeShow, recordQuickSale,
-    momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, loans: data.loans, loanPayments: data.loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment, refreshMarketPrice, setProductImage, uploadProductPhoto, momOwed, addMomPayment, deleteMomPayment, bulkRemoveLots,
+    momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, loans: data.loans, loanPayments: data.loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment, refreshMarketPrice, setProductImage, uploadProductPhoto, momOwed, giovanniShare, giovanniFronted, giovanniOwnNet, addMomPayment, deleteMomPayment, bulkRemoveLots,
     giovanniOwed, totalProfit, signIn, signInWithGoogle, signOut, addPurchase, updatePurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
     reload: () => load(ownerRef.current),
   };

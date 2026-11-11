@@ -419,3 +419,23 @@ inside the free quota). store.refreshMarketPrice saves price + stamp
 together and the screen labels SAMPLE honestly whenever the provider
 answered with sample data (no key on the device yet — the TCG API key
 step in Account is still Jen's to do).
+
+#36 — Who Owes Who: one home for every balance (Jen, 2026-11-11,
+designed with her across the morning). She kept finding balances in
+three places (Giovanni Paid Me, the Mom card inside Check My Profit,
+Money I Owe) and ruled they belong under one button. The hub (Home:
+"🤝 Who Owes Who", subtitle carries both totals) holds: Giovanni's
+settlement (your share of TCGplayer sales + shipping fronted on his
+product − Zelles received; his own product's net shown as his, in his
+hands) with the "He paid me" logger and history; the Mom tab with I
+paid Mom (moved out of Profit); the loans (borrow/pay/edit, unchanged);
+and Spent on product by person (Giovanni/Judah/Mom/Split, live from
+purchases). Check My Profit is the report card again — profit cards,
+stock value, recent sales — with one pointer button to the hub.
+Giovanni Paid Me and Money I Owe as separate screens are retired.
+TWO RULES SETTLED BY JEN IN THIS DESIGN: (1) Judah takes NO cut of
+Giovanni's product (judah_pct 0 stands); (2) shipping Judah fronts on
+Giovanni's TCGplayer sales is Giovanni's cost — frontedShipping() in
+math.ts adds it to what Giovanni owes (store giovanniOwed, hub
+breakdown line, and the Sell flow's done screen all include it).
+Mom/split shipping still nets through profit share, unchanged.

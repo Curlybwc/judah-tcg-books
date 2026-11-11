@@ -6,7 +6,7 @@ import { JobButton } from "../components/ui";
 import type { View } from "../App";
 
 export default function Home({ go }: { go: (v: View) => void }) {
-  const { totalProfit, userEmail, remote, ready, activeShow, pendingCount, syncNow, loans, loanPayments } = useStore();
+  const { totalProfit, userEmail, remote, ready, activeShow, pendingCount, syncNow, loans, loanPayments, giovanniOwed, momOwed } = useStore();
   const [checking, setChecking] = useState(false);
   const totalOwed = loans.reduce((sum, loan) => {
     const paid = loanPayments.filter((p) => p.loan_id === loan.id).reduce((a, p) => a + Number(p.amount), 0);
@@ -61,8 +61,7 @@ export default function Home({ go }: { go: (v: View) => void }) {
         <JobButton emoji="⚡" label="Quick Add" sub="Bought several things? Paste a list or say them out loud" onClick={() => go("quickadd")} />
         <JobButton emoji="💸" label="I Sold on TCGplayer" sub="Upload the orders file from TCGplayer" onClick={() => go("sell")} />
         <JobButton emoji="📷" label="Scan for Price" sub="What is this worth right now?" onClick={() => go("scan")} />
-        <JobButton emoji="🤝" label="Giovanni Paid Me" sub="He sent you a Zelle? Log it here" onClick={() => go("giovanni")} />
-        <JobButton emoji="💳" label="Money I Owe" sub={totalOwed > 0 ? `You owe ${money(totalOwed)} — who, how much, and when it's due` : "Borrowed money you need to pay back"} onClick={() => go("loans")} />
+        <JobButton emoji="🤝" label="Who Owes Who" sub={(() => { const youOwe = totalOwed + momOwed; const parts: string[] = []; if (giovanniOwed > 0) parts.push(`Giovanni owes you ${money(giovanniOwed)}`); if (youOwe > 0) parts.push(`You owe ${money(youOwe)}`); return parts.length ? parts.join(" · ") : "Giovanni, Mom & loans — every balance in one place"; })()} onClick={() => go("balances")} />
         <JobButton emoji="📈" label="Check My Profit" sub="Week, month, and all time" onClick={() => go("profit")} />
         <JobButton emoji="📦" label="What I Have For Sale" sub="Everything listed and ready to sell" onClick={() => go("inventory")} />
       </div>

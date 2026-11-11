@@ -102,14 +102,21 @@ function LoanForm({ initial, onSave, onCancel }: {
   );
 }
 
-export default function Loans({ go }: { go: (v: View) => void }) {
-  const { loans, loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment } = useStore();
+export default function Balances({ go }: { go: (v: View) => void }) {
+  const { loans, loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment,
+    giovanniOwed, giovanniShare, giovanniFronted, giovanniOwnNet, payments, addGiovanniPayment, deleteGiovanniPayment,
+    momOwed, momPayments, addMomPayment, deleteMomPayment, purchases } = useStore();
   const [mode, setMode] = useState<"list" | "new" | "detail" | "edit">("list");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState("");
   const [payDate, setPayDate] = useState(today());
   const [payNote, setPayNote] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [gioAmount, setGioAmount] = useState("");
+  const [gioNote, setGioNote] = useState("");
+  const [confirmGioId, setConfirmGioId] = useState<string | null>(null);
+  const [momAmount, setMomAmount] = useState("");
+  const [confirmMomId, setConfirmMomId] = useState<string | null>(null);
 
   const paidByLoan = useMemo(() => {
     const m = new Map<string, number>();
@@ -123,6 +130,13 @@ export default function Loans({ go }: { go: (v: View) => void }) {
   const totalOwed = Math.round(open.reduce((s, r) => s + r.m.owed, 0) * 100) / 100;
   const active = rows.find((r) => r.loan.id === activeId) ?? null;
   const activePayments = active ? loanPayments.filter((p) => p.loan_id === active.loan.id) : [];
+  const paidBack = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const momRepaid = momPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const spent = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of purchases) m.set(p.owner_kind, Math.round(((m.get(p.owner_kind) ?? 0) + Number(p.total_cost)) * 100) / 100);
+    return m;
+  }, [purchases]);
 
   if (mode === "new") {
     return (
@@ -194,47 +208,120 @@ export default function Loans({ go }: { go: (v: View) => void }) {
 
   return (
     <div>
-      <ScreenTitle title="💳 Money I Owe" sub="Money you borrowed from people — who, how much, and when it's due." />
-      <div className="rounded-3xl bg-gradient-to-br from-rose-400 to-red-500 p-5 mb-5 shadow">
-        <p className="text-red-950 font-semibold text-sm">You still owe, all together</p>
-        <p className="text-5xl font-black text-red-950 mt-1">{money(totalOwed)}</p>
-        <p className="text-red-900 text-sm mt-1">{open.length === 0 ? "Nothing outstanding. Nice." : `${open.length} loan${open.length === 1 ? "" : "s"} open.`}</p>
-      </div>
-      <div className="mb-4">
-        <BigButton onClick={() => setMode("new")}>＋ I borrowed money</BigButton>
-      </div>
-      <div className="grid gap-3">
-        {open.map(({ loan, m }) => (
-          <button key={loan.id} onClick={() => { setActiveId(loan.id); setConfirmDelete(false); setMode("detail"); }} className="text-left rounded-2xl bg-slate-800 border border-slate-700 p-4">
-            <div className="flex items-baseline justify-between">
-              <p className="text-white font-bold text-lg">{loan.lender}</p>
-              <p className="text-rose-300 font-black text-xl">{money(m.owed)} <span className="text-sm font-semibold">left</span></p>
-            </div>
-            <p className="text-slate-400 text-sm">Borrowed {money(loan.principal)} on {fmtDate(loan.borrowed_on)}{interestLine(loan) ? ` · ${interestLine(loan)}` : ""} · paid {money(m.paid)} of {money(m.totalToRepay)}</p>
-            <div className="w-full h-2 rounded-full bg-slate-700 mt-2 mb-2 overflow-hidden">
-              <div className="h-full bg-emerald-400" style={{ width: `${m.totalToRepay > 0 ? Math.min(100, (m.paid / m.totalToRepay) * 100) : 0}%` }} />
-            </div>
-            <DueChip dueOn={loan.due_on} />
+      <ScreenTitle title="🤝 Who Owes Who" sub="Every balance with everybody — Giovanni, Mom, and loans — in one place." />
+
+      <div className="rounded-3xl bg-gradient-to-br from-yellow-400 to-amber-500 p-5 mb-3">
+        <p className="text-slate-800 font-semibold text-sm">Giovanni owes you</p>
+        <p className="text-4xl font-black text-slate-900">{money(giovanniOwed)}</p>
+        <div className="mt-2 text-slate-800 text-sm">
+          <p>Your share of TCGplayer sales: {money(giovanniShare)}</p>
+          {giovanniFronted > 0 && <p>Shipping you fronted on his product: {money(giovanniFronted)}</p>}
+          <p>He has already paid you back {money(paidBack)} by Zelle.</p>
+          {giovanniOwnNet > 0 && <p className="mt-1">His own product sold for {money(giovanniOwnNet)} net — that money is his; it went straight to him.</p>}
+        </div>
+        <div className="flex gap-2 mt-3">
+          <div className="flex-1"><MoneyInput value={gioAmount} onChange={setGioAmount} placeholder="0.00" /></div>
+          <button
+            disabled={!(parseFloat(gioAmount) > 0)}
+            onClick={() => { void addGiovanniPayment(parseFloat(gioAmount), today(), gioNote.trim()); setGioAmount(""); setGioNote(""); }}
+            className="rounded-2xl bg-slate-900 text-white px-4 font-bold disabled:opacity-40">
+            He paid me
           </button>
-        ))}
-        {open.length === 0 && loans.length > 0 && <p className="text-slate-400">Every loan is paid off. 🎉</p>}
-        {loans.length === 0 && <p className="text-slate-400">No loans written down yet. When you borrow from someone, put it here so it's clear what you owe, to whom, and by when.</p>}
-      </div>
-      {done.length > 0 && (
-        <div className="mt-6">
-          <p className="text-slate-400 font-bold mb-2">✓ Paid off</p>
-          <div className="grid gap-2">
-            {done.map(({ loan, m }) => (
-              <button key={loan.id} onClick={() => { setActiveId(loan.id); setMode("detail"); }} className="text-left rounded-xl bg-slate-800/60 border border-slate-700 px-4 py-3 text-slate-300">
-                {loan.lender} — {money(m.totalToRepay)} paid in full ✓
-              </button>
+        </div>
+        <input className="w-full mt-2 rounded-xl bg-white/70 border border-amber-600/40 px-3 py-2 text-slate-800 placeholder:text-slate-500" placeholder="Note (optional) — Zelle…" value={gioNote} onChange={(e) => setGioNote(e.target.value)} />
+        {payments.length > 0 && (
+          <div className="grid gap-1.5 mt-3">
+            {payments.slice(0, 5).map((p) => (
+              <div key={p.id} className="flex justify-between items-center rounded-xl bg-white/60 px-3 py-2">
+                <span className="text-slate-800 text-sm">He paid you {money(Number(p.amount))} · {p.paid_on}{p.note ? ` · ${p.note}` : ""}</span>
+                <button
+                  onClick={() => { if (confirmGioId === p.id) { void deleteGiovanniPayment(p.id); setConfirmGioId(null); } else setConfirmGioId(p.id); }}
+                  className={`text-xs font-bold rounded-full px-2.5 py-1 ${confirmGioId === p.id ? "bg-rose-500 text-white" : "bg-slate-800 text-slate-100"}`}>
+                  {confirmGioId === p.id ? "Tap again to delete" : "Delete"}
+                </button>
+              </div>
             ))}
           </div>
-        </div>
-      )}
-      <div className="mt-6">
-        <BigButton color="slate" onClick={() => go("home")}>← Back to start</BigButton>
+        )}
       </div>
+
+      <div className="rounded-3xl bg-slate-800 border border-sky-500/50 p-5 mb-3">
+        <p className="text-sky-300 font-semibold text-sm">You owe Mom</p>
+        <p className="text-4xl font-black text-white">{money(momOwed)}</p>
+        <p className="text-slate-400 text-sm">The full cost of everything she paid for, plus her 50% of the profit when those things sell (profit = what you got for it, after fees and shipping, minus its cost). You've paid her back {money(momRepaid)} so far.</p>
+        <div className="flex gap-2 mt-3">
+          <div className="flex-1"><MoneyInput value={momAmount} onChange={setMomAmount} placeholder="0.00" /></div>
+          <button
+            disabled={!(parseFloat(momAmount) > 0)}
+            onClick={() => { void addMomPayment(parseFloat(momAmount), today(), ""); setMomAmount(""); }}
+            className="rounded-2xl bg-sky-500 text-white px-4 font-bold disabled:opacity-40">
+            I paid Mom
+          </button>
+        </div>
+        {momPayments.length > 0 && (
+          <div className="grid gap-1.5 mt-3">
+            {momPayments.slice(0, 5).map((p) => (
+              <div key={p.id} className="flex justify-between items-center rounded-xl bg-slate-900 border border-slate-700 px-3 py-2">
+                <span className="text-slate-300 text-sm">Paid Mom {money(Number(p.amount))} · {p.paid_on}</span>
+                <button
+                  onClick={() => { if (confirmMomId === p.id) { void deleteMomPayment(p.id); setConfirmMomId(null); } else setConfirmMomId(p.id); }}
+                  className={`text-xs font-bold rounded-full px-2.5 py-1 ${confirmMomId === p.id ? "bg-rose-500 text-white" : "bg-slate-700 text-slate-300"}`}>
+                  {confirmMomId === p.id ? "Tap again to delete" : "Delete"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-3xl bg-slate-800 border border-slate-700 p-5 mb-3">
+        <div className="flex items-baseline justify-between mb-1">
+          <p className="text-white font-bold text-lg">💳 Money you borrowed</p>
+          <p className="text-rose-300 font-black text-xl">{money(totalOwed)} <span className="text-sm font-semibold">owed</span></p>
+        </div>
+        <p className="text-slate-400 text-sm mb-3">{open.length === 0 ? "No loans outstanding." : `${open.length} loan${open.length === 1 ? "" : "s"} open — tap one to see it or record a payment.`}</p>
+        <div className="mb-3">
+          <BigButton onClick={() => setMode("new")}>＋ I borrowed money</BigButton>
+        </div>
+        <div className="grid gap-3">
+          {open.map(({ loan, m }) => (
+            <button key={loan.id} onClick={() => { setActiveId(loan.id); setConfirmDelete(false); setMode("detail"); }} className="text-left rounded-2xl bg-slate-900 border border-slate-700 p-4">
+              <div className="flex items-baseline justify-between">
+                <p className="text-white font-bold text-lg">{loan.lender}</p>
+                <p className="text-rose-300 font-black text-xl">{money(m.owed)} <span className="text-sm font-semibold">left</span></p>
+              </div>
+              <p className="text-slate-400 text-sm">Borrowed {money(loan.principal)} on {fmtDate(loan.borrowed_on)}{interestLine(loan) ? ` · ${interestLine(loan)}` : ""} · paid {money(m.paid)} of {money(m.totalToRepay)}</p>
+              <div className="w-full h-2 rounded-full bg-slate-700 mt-2 mb-2 overflow-hidden">
+                <div className="h-full bg-emerald-400" style={{ width: `${m.totalToRepay > 0 ? Math.min(100, (m.paid / m.totalToRepay) * 100) : 0}%` }} />
+              </div>
+              <DueChip dueOn={loan.due_on} />
+            </button>
+          ))}
+          {loans.length === 0 && <p className="text-slate-400 text-sm">No loans written down yet. When you borrow from someone, put it here so it's clear what you owe, to whom, and by when.</p>}
+        </div>
+        {done.length > 0 && (
+          <div className="mt-4">
+            <p className="text-slate-400 font-bold mb-2 text-sm">✓ Paid off</p>
+            <div className="grid gap-2">
+              {done.map(({ loan, m }) => (
+                <button key={loan.id} onClick={() => { setActiveId(loan.id); setMode("detail"); }} className="text-left rounded-xl bg-slate-900/60 border border-slate-700 px-4 py-3 text-slate-300 text-sm">
+                  {loan.lender} — {money(m.totalToRepay)} paid in full ✓
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-3xl bg-slate-800 border border-slate-700 p-5 mb-3">
+        <p className="text-white font-bold text-lg mb-2">💰 Spent on product</p>
+        <MathRow label="Giovanni spent" value={money(spent.get("giovanni") ?? 0)} />
+        <MathRow label="Judah spent" value={money(spent.get("mine") ?? 0)} />
+        <MathRow label="Mom spent" value={money((spent.get("mom_payback") ?? 0) + (spent.get("mom_split") ?? 0))} />
+        {(spent.get("split") ?? 0) > 0 && <MathRow label="Split buys (shared)" value={money(spent.get("split") ?? 0)} />}
+      </div>
+
+      <BigButton color="slate" onClick={() => go("home")}>← Back to start</BigButton>
     </div>
   );
 }

@@ -4,8 +4,7 @@ import Home from "./views/Home";
 import BuyFlow from "./views/BuyFlow";
 import SellFlow from "./views/SellFlow";
 import ScanPrice from "./views/ScanPrice";
-import GiovanniPay from "./views/GiovanniPay";
-import Loans from "./views/Loans";
+import Balances from "./views/Balances";
 import Profit from "./views/Profit";
 import Books from "./views/Books";
 import QuickAdd from "./views/QuickAdd";
@@ -16,7 +15,7 @@ import SetsSection from "./views/Sets";
 import ShowDashboard, { ShowClose } from "./views/ShowMode";
 import { ShowBuy, ShowSell } from "./views/ShowTrade";
 
-export type View = "home" | "buy" | "quickadd" | "sell" | "scan" | "giovanni" | "profit" | "books" | "inventory" | "bank" | "account" | "show" | "showBuy" | "showSell" | "showClose" | "loans";
+export type View = "home" | "buy" | "quickadd" | "sell" | "scan" | "giovanni" | "profit" | "books" | "inventory" | "bank" | "account" | "show" | "showBuy" | "showSell" | "showClose" | "balances";
 
 function Shell() {
   const [view, setView] = useState<View>("home");
@@ -66,8 +65,7 @@ function Shell() {
             {view === "quickadd" && <QuickAdd go={go} />}
             {view === "sell" && <SellFlow go={go} />}
             {view === "scan" && <ScanPrice go={go} />}
-            {view === "giovanni" && <GiovanniPay go={go} />}
-            {view === "loans" && <Loans go={go} />}
+            {view === "balances" && <Balances go={go} />}
             {view === "profit" && <Profit go={go} />}
             {view === "books" && <Books />}
             {view === "inventory" && <Inventory go={go} />}
