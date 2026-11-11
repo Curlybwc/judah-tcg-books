@@ -27,27 +27,12 @@ export default function Home({ go }: { go: (v: View) => void }) {
   }
   return (
     <div>
-      <div className="rounded-3xl bg-gradient-to-br from-yellow-400 to-amber-500 p-5 mb-5 shadow">
+      <button onClick={() => go("profit")} className="w-full text-left rounded-3xl bg-gradient-to-br from-yellow-400 to-amber-500 p-5 mb-5 shadow">
         <p className="text-slate-800 font-semibold text-sm">Your profit — all time</p>
         <p className="text-5xl font-black text-slate-900 mt-1">{ready ? money(totalProfit) : "…"}</p>
-        <p className="text-slate-700 text-sm mt-1">Everything you've made after fees and costs. Week and month are on Check My Profit.</p>
-      </div>
-
-
-      {userEmail ? (
-        <button onClick={() => go("account")} className="w-full mb-4 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-semibold">
-          👤 Account — sets, invites & sign-in
-        </button>
-      ) : (
-        <button onClick={() => go("account")} className="w-full mb-4 rounded-2xl bg-yellow-400 text-slate-900 py-3.5 font-black">
-          🔑 Sign In — get your real books
-        </button>
-      )}
-
-      <button onClick={() => void onCheckUpdates()} disabled={checking} className="w-full mb-4 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-semibold disabled:opacity-50">
-        {checking ? "🔄 Checking for updates…" : "🔄 Check for updates"}
+        <p className="text-slate-700 text-sm mt-1">Everything you've made after fees and costs. Tap to open Profit — week and month are there.</p>
       </button>
-      {updateMsg && <p className="text-center text-sm text-emerald-300 font-semibold -mt-2 mb-3">{updateMsg}</p>}
+
 
       {pendingCount > 0 && (
         <button onClick={() => void syncNow()} className="w-full mb-4 rounded-2xl bg-sky-600 text-white py-3.5 font-bold">
@@ -65,6 +50,20 @@ export default function Home({ go }: { go: (v: View) => void }) {
       </div>
 
       <button onClick={() => go("bank")} className="w-full mt-6 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-300 font-semibold">🏦 Bank (coming soon)</button>
+
+      {userEmail ? (
+        <button onClick={() => go("account")} className="w-full mt-3 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-semibold">
+          👤 Account — sets, invites & sign-in
+        </button>
+      ) : (
+        <button onClick={() => go("account")} className="w-full mt-3 rounded-2xl bg-yellow-400 text-slate-900 py-3.5 font-black">
+          🔑 Sign In — get your real books
+        </button>
+      )}
+      <button onClick={() => void onCheckUpdates()} disabled={checking} className="w-full mt-3 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-300 font-semibold disabled:opacity-50">
+        {checking ? "🔄 Checking for updates…" : "🔄 Check for updates"}
+      </button>
+      {updateMsg && <p className="text-center text-sm text-emerald-300 font-semibold mt-2">{updateMsg}</p>}
       <p className="text-center text-xs text-slate-500 mt-4">
         {remote ? "Connected to your cloud books ✓" : "On-phone mode — books saved on this phone"}
       </p>

@@ -460,3 +460,12 @@ considered "Debt," ruled LEAVE IT FOR NOW. Shipping has no button of
 its own — shipping in rides inside each buy's cost basis; shipping out
 is per-order in Sales (or auto-filled from Pirate Ship). A standalone
 "Costs" totals button was floated, not ruled.
+
+#39 — Housekeeping to the bottom; the profit hero is the Profit button
+(Jen, 2026-11-11). Home order now: profit hero (tap it — it IS the
+Profit button; "we don't need extra buttons if one can do two
+things"), the sync banner when items are waiting, the six job buttons,
+Bank, then Account / Sign In and Check for updates at the very bottom
+where settings belong. This supersedes #33's move of Check for updates
+to the top — that fixed findability the wrong way; Jen's settled
+layout is jobs first, housekeeping last.
