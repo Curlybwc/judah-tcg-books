@@ -287,3 +287,23 @@ Jen: flip any of these and the app changes to match. None of them reopen the set
     so it works offline and in on-phone mode; lookup order is own products →
     starter library → new-barcode path. The two demo products' invented
     barcodes were corrected to the verified UPCs above (cloud + local seed).
+
+30. **Edit a buy (Jen, 2026-11-10).** Jen: "there's not really any way to edit
+    something once I've put it in." True — buys were write-once except undo.
+    Now every stock row on the Inventory screen has **✏️ Edit buy**: product
+    name, UPC/barcode (typed or scanned; a changed barcode is checked against
+    the starter library), how many bought, price each, tax rate %, shipping
+    in, whose it is (Mine / Giovanni's / Split % / Mom paid), and how it was
+    paid for (USAA / Cash / Other) — her two named Delta Reign fixes (add the
+    UPC, change who paid) are both in the panel. Bookkeeping rule: sales
+    already recorded keep the numbers they were saved with — the edit changes
+    the purchase, the remaining stock, and future sales, and the panel says
+    so when the lot has sales. Quantity can never drop below what already
+    sold or left the lot. Cost basis and totals recompute from the same math
+    module as a fresh buy.
+    **Migration 010** (found by executing the flow as the app's anon caller):
+    migration 002 never granted anon UPDATE on purchases and no sample-update
+    policy existed — products/lots had both, purchases didn't. Authenticated
+    owners were unaffected; demo mode (today's mode) would have failed every
+    edit. Granted + policy added, sample-owner-scoped like its siblings;
+    verified as anon incl. a wrong-owner update touching 0 rows.

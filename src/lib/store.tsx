@@ -85,6 +85,7 @@ interface Store {
   deleteSale: (sale: Sale) => Promise<void>;
   adjustStock: (lot: Lot, qtyRemoved: number, reason: string) => Promise<void>;
   undoPurchaseForLot: (lot: Lot) => Promise<boolean>;
+  updatePurchase: (lot: Lot, input: { name: string; barcode: string | null; qty: number; unitPrice: number; taxRate: number; shippingIn: number; ownerKind: "mine" | "giovanni" | "split" | "mom_payback" | "mom_split"; judahPct: number; paidVia: "USAA" | "Cash" | "Other" }) => Promise<string | null>;
   deleteGiovanniPayment: (id: string) => Promise<void>;
   recordBankImport: (filename: string, rowCount: number) => Promise<void>;
   reload: () => Promise<void>;
@@ -244,6 +245,41 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }));
     return purchase;
   }, [data.products, applyLocal, commit]);
+
+  // Edit a buy after the fact (Jen, 2026-11-10): fix the product name or UPC,
+  // who it belongs to, how it was paid for, and the money numbers. Sales
+  // already recorded keep the numbers they were saved with (history is not
+  // rewritten); the edit changes the purchase, the lot's remaining stock, and
+  // every future sale. Quantity can never drop below what already left this
+  // lot (sold + adjusted out).
+  const updatePurchase: Store["updatePurchase"] = useCallback(async (lot, input) => {
+    const purchase = data.purchases.find((p) => p.id === lot.purchase_id);
+    if (!purchase) return "Couldn't find that buy to edit.";
+    const consumed = purchase.qty - lot.qty_on_hand;
+    if (input.qty < 1) return "How many bought has to be at least 1.";
+    if (input.qty < consumed) return `${consumed} of these already sold or left stock, so the buy can't be smaller than ${consumed}.`;
+    if (!(input.unitPrice > 0)) return "Price each has to be more than zero.";
+    if (input.name.trim().length < 2) return "The product needs a name.";
+    const tax = taxFromRate(input.qty * input.unitPrice, input.taxRate);
+    const { totalCost, costBasisUnit } = purchaseMath(input.qty, input.unitPrice, tax, input.shippingIn);
+    const judahPct = input.ownerKind === "mine" || input.ownerKind === "mom_payback" || input.ownerKind === "mom_split" ? 100 : input.ownerKind === "giovanni" ? 0 : input.judahPct;
+    const taxRate = input.taxRate > 0 ? input.taxRate : null;
+    const newOnHand = lot.qty_on_hand + (input.qty - purchase.qty);
+    if (remoteRef.current) {
+      try {
+        if (lot.product_id) { const r = await supabase.from("products").update({ name: input.name.trim(), barcode: input.barcode }).eq("id", lot.product_id); if (r.error) throw r.error; }
+        const r2 = await supabase.from("purchases").update({ product_name: input.name.trim(), qty: input.qty, unit_price: input.unitPrice, tax, tax_rate: taxRate, shipping_in: input.shippingIn, total_cost: totalCost, cost_basis_unit: costBasisUnit, owner_kind: input.ownerKind, judah_pct: judahPct, paid_via: input.paidVia }).eq("id", purchase.id); if (r2.error) throw r2.error;
+        const r3 = await supabase.from("inventory_lots").update({ qty_on_hand: newOnHand, cost_basis_unit: costBasisUnit, owner_kind: input.ownerKind, judah_pct: judahPct }).eq("id", lot.id); if (r3.error) throw r3.error;
+      } catch { return "Couldn't save that in the cloud \u2014 check your connection and try again."; }
+    }
+    applyLocal((d) => ({
+      ...d,
+      products: d.products.map((p) => (p.id === lot.product_id ? { ...p, name: input.name.trim(), barcode: input.barcode } : p)),
+      purchases: d.purchases.map((p) => (p.id === purchase.id ? { ...p, product_name: input.name.trim(), qty: input.qty, unit_price: input.unitPrice, tax, tax_rate: taxRate, shipping_in: input.shippingIn, total_cost: totalCost, cost_basis_unit: costBasisUnit, owner_kind: input.ownerKind, judah_pct: judahPct, paid_via: input.paidVia } : p)),
+      lots: d.lots.map((l) => (l.id === lot.id ? { ...l, qty_on_hand: newOnHand, cost_basis_unit: costBasisUnit, owner_kind: input.ownerKind, judah_pct: judahPct } : l)),
+    }));
+    return null;
+  }, [data.purchases, applyLocal]);
 
   const recordSales: Store["recordSales"] = useCallback(async (rows) => {
     const owner = ownerRef.current;
@@ -522,7 +558,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
     shows: data.shows, activeShow, pendingCount: outbox.length, syncNow, startShow, closeShow, recordQuickSale,
     momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, setProductImage, uploadProductPhoto, momOwed, addMomPayment, deleteMomPayment, bulkRemoveLots,
-    giovanniOwed, totalProfit, signIn, signOut, addPurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
+    giovanniOwed, totalProfit, signIn, signOut, addPurchase, updatePurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
     reload: () => load(ownerRef.current),
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

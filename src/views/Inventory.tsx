@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../lib/store";
 import { money } from "../lib/math";
-import { Chip, ScreenTitle, ownerLabel } from "../components/ui";
+import { Chip, Field, inputCls, MoneyInput, ScreenTitle, ownerLabel } from "../components/ui";
+import BarcodeScanner from "../components/BarcodeScanner";
+import { catalogLookup, normalizeBarcode } from "../lib/catalog";
+import type { Lot, OwnerKind, PaidVia } from "../lib/types";
 import { priceProvider } from "../lib/priceProvider";
 import { useRef } from "react";
 import type { View } from "../App";
@@ -10,6 +13,7 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
   const { lots, products, sales, undoPurchaseForLot, adjustStock, bulkRemoveLots, setProductImage, uploadProductPhoto } = useStore();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [adjustId, setAdjustId] = useState<string | null>(null);
+  const [editBuyId, setEditBuyId] = useState<string | null>(null);
   const [adjustQty, setAdjustQty] = useState(1);
   const [adjustReason, setAdjustReason] = useState<string>("damaged");
   const [editMode, setEditMode] = useState(false);
@@ -133,6 +137,7 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
         </div>
       )}
 
+      {!editMode && editMsg && <p className="text-emerald-300 text-sm font-semibold mb-3">{editMsg}</p>}
       {!editMode && groups.length === 0 && (
         <div className="rounded-2xl bg-slate-800 border border-slate-700 p-5 text-slate-300">
           Nothing for sale yet. Tap “I Bought Product” when you buy something to sell.
@@ -171,7 +176,12 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
                         <p className="text-slate-400 text-sm">{l.qty_on_hand} × at {money(Number(l.cost_basis_unit))} cost · <span className="text-slate-200 font-semibold">{ownerLabel(l.owner_kind, Number(l.judah_pct))}</span></p>
                         <span className="flex gap-1.5 shrink-0">
                           <button
-                            onClick={() => { setAdjustId(adjustId === l.id ? null : l.id); setAdjustQty(1); setAdjustReason("damaged"); }}
+                            onClick={() => { setEditBuyId(editBuyId === l.id ? null : l.id); setAdjustId(null); }}
+                            className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-200">
+                            ✏️ Edit buy
+                          </button>
+                          <button
+                            onClick={() => { setAdjustId(adjustId === l.id ? null : l.id); setAdjustQty(1); setAdjustReason("damaged"); setEditBuyId(null); }}
                             className="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-700 text-slate-300">
                             Adjust stock
                           </button>
@@ -184,6 +194,9 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
                           )}
                         </span>
                       </div>
+                      {editBuyId === l.id && (
+                        <EditBuyPanel lot={l} soldFrom={soldFrom} onClose={() => setEditBuyId(null)} onSaved={() => { setEditBuyId(null); setEditMsg("Buy updated \u2713"); }} />
+                      )}
                       {adjustId === l.id && (
                         <div className="mt-2 rounded-xl bg-slate-900 border border-slate-700 p-3">
                           <p className="text-slate-300 text-sm font-semibold mb-2">Take out of stock without a sale — what happened?</p>
@@ -217,6 +230,103 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => void onPhotoFile(e)} />
       {photoMsg && <p className="text-emerald-300 text-sm font-semibold mt-3">{photoMsg}</p>}
       <button onClick={() => go("buy")} className="w-full mt-5 rounded-2xl bg-yellow-400 text-slate-900 py-4 font-bold text-lg">🛒 I bought more product</button>
+    </div>
+  );
+}
+
+function EditBuyPanel({ lot, soldFrom, onClose, onSaved }: { lot: Lot; soldFrom: boolean; onClose: () => void; onSaved: () => void }) {
+  const { products, purchases, updatePurchase } = useStore();
+  const purchase = purchases.find((p) => p.id === lot.purchase_id);
+  const product = products.find((p) => p.id === lot.product_id);
+  const [name, setName] = useState(product?.name ?? purchase?.product_name ?? "");
+  const [barcode, setBarcode] = useState(product?.barcode ?? "");
+  const [qty, setQty] = useState(String(purchase?.qty ?? lot.qty_on_hand));
+  const [unitPrice, setUnitPrice] = useState(purchase ? String(Number(purchase.unit_price)) : "");
+  const [taxRate, setTaxRate] = useState(purchase?.tax_rate != null ? String(Number(purchase.tax_rate)) : "");
+  const [shippingIn, setShippingIn] = useState(purchase ? String(Number(purchase.shipping_in)) : "");
+  const [ownerKind, setOwnerKind] = useState<OwnerKind>(lot.owner_kind);
+  const [splitPct, setSplitPct] = useState(Number(lot.judah_pct) || 50);
+  const [paidVia, setPaidVia] = useState<PaidVia>(purchase?.paid_via ?? "Other");
+  const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  if (!purchase) return null;
+  const cat = barcode.trim() && normalizeBarcode(barcode) !== normalizeBarcode(product?.barcode ?? "") ? catalogLookup(barcode) : undefined;
+
+  async function save() {
+    setSaving(true);
+    const err = await updatePurchase(lot, {
+      name: name.trim(),
+      barcode: barcode.trim() ? normalizeBarcode(barcode) : null,
+      qty: parseInt(qty) || 0,
+      unitPrice: parseFloat(unitPrice) || 0,
+      taxRate: parseFloat(taxRate) || 0,
+      shippingIn: parseFloat(shippingIn) || 0,
+      ownerKind, judahPct: splitPct, paidVia,
+    });
+    setSaving(false);
+    if (err) setError(err); else onSaved();
+  }
+
+  return (
+    <div className="mt-2 rounded-xl bg-slate-900 border border-slate-700 p-3">
+      <p className="text-slate-200 text-sm font-bold mb-3">Fix this buy — name, UPC, whose it is, how it was paid for, the numbers.</p>
+      <Field label="Product name">
+        <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
+      </Field>
+      <Field label="UPC / barcode">
+        <input className={inputCls} value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="The numbers under the barcode" inputMode="numeric" />
+      </Field>
+      <button onClick={() => setScanning(true)} className="w-full rounded-xl bg-slate-700 text-white py-2.5 font-semibold mb-3 text-sm">📷 Scan the barcode</button>
+      {scanning && <BarcodeScanner onCode={(code) => { setBarcode(code); setScanning(false); }} onClose={() => setScanning(false)} />}
+      {cat && <p className="text-sky-300 text-sm mb-3">📚 The starter library calls this barcode “{cat.name}”.</p>}
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <Field label="How many bought">
+            <input className={inputCls} value={qty} onChange={(e) => setQty(e.target.value)} inputMode="numeric" />
+          </Field>
+        </div>
+        <div className="flex-1">
+          <Field label="Price each">
+            <MoneyInput value={unitPrice} onChange={setUnitPrice} placeholder="0.00" />
+          </Field>
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <Field label="Tax rate %">
+            <input className={inputCls} value={taxRate} onChange={(e) => setTaxRate(e.target.value)} inputMode="decimal" placeholder="0" />
+          </Field>
+        </div>
+        <div className="flex-1">
+          <Field label="Shipping in">
+            <MoneyInput value={shippingIn} onChange={setShippingIn} placeholder="0.00" />
+          </Field>
+        </div>
+      </div>
+      <p className="text-slate-300 text-sm font-semibold mb-1.5">Whose is it?</p>
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {([["mine", "\uD83D\uDFE1 Mine"], ["giovanni", "\uD83D\uDD35 Giovanni's"], ["split", "\uD83D\uDFE3 Split"], ["mom_payback", "\uD83D\uDFE6 Mom paid"]] as const).map(([k, label]) => (
+          <button key={k} onClick={() => setOwnerKind(k)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${ownerKind === k ? "bg-yellow-400 text-slate-900" : "bg-slate-700 text-slate-200"}`}>{label}</button>
+        ))}
+      </div>
+      {ownerKind === "split" && (
+        <Field label={`My share: ${splitPct}%`}>
+          <input type="range" min={5} max={95} step={5} value={splitPct} onChange={(e) => setSplitPct(parseInt(e.target.value))} className="w-full accent-yellow-400" />
+        </Field>
+      )}
+      <p className="text-slate-300 text-sm font-semibold mb-1.5">How was it paid for?</p>
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {(["USAA", "Cash", "Other"] as const).map((v) => (
+          <button key={v} onClick={() => setPaidVia(v)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${paidVia === v ? "bg-sky-400 text-slate-900" : "bg-slate-700 text-slate-200"}`}>{v}</button>
+        ))}
+      </div>
+      {soldFrom && <p className="text-amber-300 text-sm mb-3">Heads up: some of these already sold. Those sales keep the numbers they were saved with — this fix changes the buy itself, what's still in stock, and future sales.</p>}
+      {error && <p className="text-rose-300 text-sm font-semibold mb-3">{error}</p>}
+      <div className="flex gap-2">
+        <button disabled={saving} onClick={() => void save()} className="flex-1 rounded-xl bg-yellow-400 text-slate-900 py-3 font-black disabled:opacity-50">{saving ? "Saving\u2026" : "\u2713 Save the fix"}</button>
+        <button onClick={onClose} className="rounded-xl bg-slate-700 text-white px-5 py-3 font-bold">Cancel</button>
+      </div>
     </div>
   );
 }
