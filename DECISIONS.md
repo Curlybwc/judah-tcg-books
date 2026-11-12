@@ -669,3 +669,13 @@ If Judah later gives the true owner order, rows re-point to other
 lots in one pass — nothing is baked. Postage still unpaired (the
 11/11 labels pair by tracking number against a Pirate Ship
 Shipments export when it comes).
+#57 — ShippingExport read in full (2026-11-12): it has NO tracking
+numbers and no shipping-fee values — rows end at Value of Products.
+(Maven told Jen last night it had tracking numbers, from the header
+alone; corrected to her face this morning.) What it does prove:
+Item Count per order ties exactly to the #56 write-in (A7CA75 = 3,
+every other Nov order = 1) and every Value of Products matches.
+The postage bridge stands as: Pirate Ship → Shipments → Export
+(recipient + tracking + cost per label), paired to orders by the
+reference/name it carries. The eleven-eleven labels ($162.22) pair
+in that pass; profits dip and Mom's owed rises by her postage then.
