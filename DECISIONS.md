@@ -621,3 +621,14 @@ match to lots with the no-guessing rule, record sales with the app's
 fee math, decrement stock, verify by readback, report a table. The
 file import stays as the manual path. First live run: Jen's 31 real
 orders (Sep 16–Nov 7, $6,993.06) harvested the same day.
+#52a — The click-through's real gate is Giovanni (Jen, 2026-11-11
+evening): TCGplayer sign-in codes go to GIOVANNI — it's his account,
+his inbox. Jen relayed one code by hand (568396, 16:12) but will not
+reliably get them. Two cloud-browser runs died on that wall (one
+two-hour timeout, one stopped within a minute of Jen's word). Rules
+going forward: never start a TCGplayer session expecting Jen to fetch
+codes; a click-through run needs Giovanni present (or his forwarding)
+ONCE — the browser keeps the session after — or it doesn't start.
+The app paths (order-list import, Pirate Ship chips, Ask Muse
+prices) work without any TCGplayer sign-in and are the standing way
+in; pre-app and unidentified orders stay unmatched by design.
