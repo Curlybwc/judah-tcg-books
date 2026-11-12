@@ -774,3 +774,14 @@ $4,859.18; $434.79 of it is net from the three UNRECORDED orders
 Giovanni owes that too. Open app question for Jen: teach saleMath
 the tax piece (needs a buyer-tax input per sale) or keep the
 payments-list correction as the routine.
+#65 — The $54 ETB was Judah's (Jen, 2026-11-12). The third box in
+order A7CA75 had been drawn from a "Giovanni" lot, but the physical
+ETB was Judah's own — entered twice in the app (once as Giovanni's
+under "Delta Reign ETB," once as Judah's under "Delta reign").
+Fix: the sale row re-pointed to Judah's lot (now 0 on hand), the
+phantom Giovanni purchase/lot deleted (his spend is now just the
+4 UPCs, $1,085). Money: that sale's $19.01 profit moves Gio ->
+Judah, and its $73.01 net joins what Giovanni owes. New totals:
+profit Judah $391.12 / Gio $196.30 / Mom $124.57; Giovanni owes
+Judah $2,996.45; Judah owes Mom $3,280.75 incl. the $1,000 loan
+(net shortfall $284.30).
