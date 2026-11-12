@@ -703,3 +703,23 @@ receipts $3,505.15, COGS $2,426.76, fees $467.69, net $449.05.
 "I want just Judah's profit on the big button on home"). store's
 totalProfit now = profitByPerson(...).judah; the hero reads "Judah's
 profit — all time." Today that's $449.05, not the blended $868.17.
+#60 — Postage paired by ESTIMATE (Jen, 2026-11-12: "we can guess
+which item they belonged to based on date and estimated weight of
+products" / "or address?"). The 11/11 labels ($162.22) were paired
+to the Nov orders by packaged-weight class x distance zone, all as
+Mom-paid (her Pirate Ship account). $148.35 landed on the 14
+recorded orders; $7.89 (ETB to WV) and $5.98 (One Piece single)
+paired to orders that were never recorded, so they're outside the
+books; the Nov 6 UPC to Michigan and the left-out Denver UPC got
+no label (shipped another day, presumably). Known soft spots: the
+two California UPCs split $17.24/$12.41 on a coin flip. Address
+pairing is the exact method but needs Pirate Ship's Shipments
+export (recipient per label) — the Transactions ledger has no
+recipients, and TCGplayer's tracking column is empty. When that
+export arrives, estimates are replaced, not defended. Effects:
+total profit $868.17 -> $719.82 (Judah $371.60 / Gio $225.68 / Mom
+$122.54); owed to Mom $2,280.43; Giovanni owes Judah $2,920.90.
+Also: this morning's ShippingExport format adds a Carrier column
+and FILLS the Shipping Fee Paid values (shipping CHARGED to the
+buyer — matches the order list; the first export's rows were
+truncated before those columns).
