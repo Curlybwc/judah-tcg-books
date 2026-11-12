@@ -654,3 +654,18 @@ whose UPCs/ETBs sold (snapshot pool splits UPC 4 mine / 4 Giovanni /
 4 Mom = 12 against 13 sold; ETB 1 Giovanni / 4 Mom = 5 against 6
 sold — one unexplained extra in each) and the Greninja name (moot
 for recording now; its sales are pre-week).
+#56 — The Nov 6–7 backlog is recorded (Jen: "Just do the ones that
+you can. Leave the other UPC and Delta [Reign]"). Fill rule used,
+disclosed to Jen: sales in chronological order draw the pools' lots
+in the order the lots were entered (UPC: Mom 4 → Judah 4 → Giovanni
+4; ETB: Mom 4 → Giovanni 1); the 3-ETB order A7CA75 splits 2 Mom /
+1 Giovanni; whatever the pools can't cover stays out. Recorded:
+16 sale rows, 17 units — gross $5,116.65, fees $682.72, profit
+$868.17, Mom's share +$161.65 (owed-to-Mom now $2,171.19 before
+postage), Judah's share of payouts $3,037.46 (= what Giovanni owes
+before payments). Left out: UPC order 607F4A (Nov 7, $384.43) and
+ETB order 80D91A ($84.50). All five pool lots now read 0 on hand.
+If Judah later gives the true owner order, rows re-point to other
+lots in one pass — nothing is baked. Postage still unpaired (the
+11/11 labels pair by tracking number against a Pirate Ship
+Shipments export when it comes).
