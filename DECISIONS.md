@@ -723,3 +723,20 @@ Also: this morning's ShippingExport format adds a Carrier column
 and FILLS the Shipping Fee Paid values (shipping CHARGED to the
 buyer — matches the order list; the first export's rows were
 truncated before those columns).
+#61 — Postage is EXACT now (Jen sent Pirate Ship's Shipments export,
+2026-11-12): recipient + cost per label. The #60 estimates were
+replaced the same morning. Pairing is by buyer name against the
+TCGplayer orders. Notable estimate misses: the 3-ETB box cost
+$10.21 (not $17.87 — the second $17 label was a UPC to New York),
+and the Michigan UPC did have an $8.36 label. One judgment call:
+David Hass placed two orders 4 minutes apart and there is exactly
+one Hass label ($9.55) — treated as one combined box, split
+$4.78/$4.77 across his two orders. Unrecorded orders' labels
+(Winters $6.08, Heath $9.50) stay outside the books; the One Piece
+single has no Pirate Ship label at all. Three "Josiah Bahr" labels
+in the file are personal shipments, not orders. Recorded postage:
+$146.64. Final Nov-batch numbers: profit Judah $375.15 / Gio
+$217.36 / Mom $129.02 ($721.53 total); owed to Mom $2,285.20;
+Giovanni owes Judah $2,930.93. Standing routine from here: packing
+slips for what sold, Shipments export for what postage cost —
+both pair by name, no guessing.
