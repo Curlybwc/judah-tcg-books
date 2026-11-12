@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { priceProvider, type PriceResult } from "./priceProvider";
-import { frontedShipping, momShippingOwed, profitByPerson } from "./math";
+import { frontedShipping, momShippingOwed, profitByPerson, giovanniShareGross } from "./math";
 import { SAMPLE_OWNER_ID } from "./config";
 import type { BookMember, BookSet, Expense, ExpenseCategory, GiovanniPayment, Loan, LoanInput, LoanPayment, Lot, MomPayment, Product, Purchase, Sale, Show } from "./types";
 import { blobToDataUrl, compressImageFile } from "./photos";
@@ -785,7 +785,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return Math.round((payback + shares + momShipOwed - repaid) * 100) / 100;
   }, [data.purchases, data.sales, data.momPayments, momShipOwed]);
 
-  const giovanniShare = useMemo(() => Math.round(data.sales.filter((x) => !x.channel || x.channel === "tcgplayer").reduce((s, x) => s + Number(x.judah_share), 0) * 100) / 100, [data.sales]);
+  // DECISIONS #66: Giovanni owes the GROSS — the payout on Judah's and
+  // Mom's stock before any postage comes out (postage settles separately).
+  const giovanniShare = useMemo(() => giovanniShareGross(data.sales, data.lots), [data.sales, data.lots]);
   const giovanniFronted = useMemo(() => frontedShipping(data.sales, data.lots), [data.sales, data.lots]);
   const giovanniOwnNet = useMemo(() => {
     const kind = new Map(data.lots.map((l) => [l.id, l.owner_kind]));
@@ -795,7 +797,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const giovanniOwed = useMemo(() => {
     // Giovanni's balance is a TCGplayer-only number: he collects those payouts.
     // Show sales are cash/Venmo in Judah's own hand, so they never enter it.
-    const share = data.sales.filter((x) => !x.channel || x.channel === "tcgplayer").reduce((s, x) => s + Number(x.judah_share), 0);
+    const share = giovanniShareGross(data.sales, data.lots);
     const paid = data.payments.reduce((s, x) => s + Number(x.amount), 0);
     const fronted = frontedShipping(data.sales, data.lots);
     return Math.round((share + fronted - paid) * 100) / 100;

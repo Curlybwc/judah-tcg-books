@@ -785,3 +785,20 @@ Judah, and its $73.01 net joins what Giovanni owes. New totals:
 profit Judah $391.12 / Gio $196.30 / Mom $124.57; Giovanni owes
 Judah $2,996.45; Judah owes Mom $3,280.75 incl. the $1,000 loan
 (net shortfall $284.30).
+#66 — Giovanni owes the GROSS (Jen, 2026-11-12, correcting the
+settlement model): "gio owes the gross remember — and also add in
+any shipping that judah paid FOR Gio or that Mom paid FOR gio. If
+mom paid for the shipping, judah owes it to mom but if it was gio's,
+gio owes it to judah so judah can pay it to mom." So: (1) Judah's
+share of Giovanni's collections is the payout on his + Mom's stock
+(item − fees) with NO postage deducted — postage never came out of
+Giovanni's payout. (2) Shipping on Giovanni's OWN sales is his debt
+to Judah whoever fronted it (Judah-paid or Mom-paid); Mom-paid
+postage on his sales stays in Judah-owes-Mom too — the same dollars
+passing Gio -> Judah -> Mom, two legs, not a double count. Built:
+giovanniShareGross() in math.ts, frontedShipping drops the Mom
+exclusion, store balance + SellFlow collected/owed displays +
+Balances wording follow. Batch result: Giovanni owes $3,143.09
+($3,102.98 gross share + $40.11 postage on his sales); Judah owes
+Mom $2,280.75 + $1,000 loan = $3,280.75 (shortfall $137.66).
+Supersedes the settlement figures in #64/#65 (profits unchanged).

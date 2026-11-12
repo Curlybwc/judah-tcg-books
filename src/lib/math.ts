@@ -237,15 +237,37 @@ export interface LotKind { id: string; owner_kind: string }
 /** Shipping Judah fronted on GIOVANNI's product (DECISIONS #36, Jen's
  *  ruling): Judah takes no cut of Giovanni's sales, but he must not eat
  *  the postage either — shipping he paid on Giovanni-owned TCGplayer
- *  sales is Giovanni's cost, owed back to Judah. Only the first row of
+ *  sales is Giovanni's cost, owed back to Judah — whoever fronted it
+ *  (DECISIONS #66: Mom-paid counts too; see below). Only the first row of
  *  an order carries shipping_paid, so summing rows never double-counts. */
 export function frontedShipping(sales: FrontedSale[], lots: LotKind[]): number {
   const kind = new Map(lots.map((l) => [l.id, l.owner_kind]));
   let total = 0;
   for (const s of sales) {
     if (s.channel && s.channel !== "tcgplayer") continue;
-    if (s.ship_paid_by === "mom") continue; // Mom fronted it — not Judah's money, not Giovanni's debt to Judah
+    // DECISIONS #66 (Jen, 2026-11-12): shipping on Giovanni's product is
+    // Giovanni's debt to Judah WHOEVER fronted it. If Mom paid it, Judah
+    // owes Mom (momShippingOwed) and collects it back from Giovanni —
+    // the two legs are the same dollars passing through, not a double count.
     if (s.lot_id && kind.get(s.lot_id) === "giovanni") total += Number(s.shipping_paid) || 0;
+  }
+  return round2(total);
+}
+
+export interface ShareSale { lot_id: string | null; item_price: number; shipping_charged: number; fees: number; channel?: string | null }
+
+/** Judah's share of Giovanni's collections, GROSS of postage (DECISIONS
+ *  #66, Jen: "gio owes the gross"): what TCGplayer actually paid out on
+ *  Judah's and Mom's stock — item + shipping charged − TCGplayer fees.
+ *  Postage is NOT deducted here: it came out of Mom's bank account, not
+ *  out of Giovanni's payout, and it is settled on its own lines. */
+export function giovanniShareGross(sales: ShareSale[], lots: LotKind[]): number {
+  const kind = new Map(lots.map((l) => [l.id, l.owner_kind]));
+  let total = 0;
+  for (const s of sales) {
+    if (s.channel && s.channel !== "tcgplayer") continue;
+    if (!s.lot_id || kind.get(s.lot_id) === "giovanni") continue;
+    total += (Number(s.item_price) || 0) + (Number(s.shipping_charged) || 0) - (Number(s.fees) || 0);
   }
   return round2(total);
 }

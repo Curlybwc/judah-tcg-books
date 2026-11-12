@@ -14,7 +14,7 @@ cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
 cpSync(join(root, "src/lib/quickbuy.ts"), join(tmp, "quickbuy.ts"));
 cpSync(join(root, "src/lib/catalog.ts"), join(tmp, "catalog.ts"));
 execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "quickbuy.ts", "catalog.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
-const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping, momShippingOwed, profitByPerson, personTaxSummary } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping, momShippingOwed, profitByPerson, personTaxSummary, giovanniShareGross } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
 const { parseQuickBuyLine, allocateShipping } = createRequire(import.meta.url)(join(tmp, "out/quickbuy.js"));
 const { UPC_CATALOG, normalizeBarcode, catalogLookup } = createRequire(import.meta.url)(join(tmp, "out/catalog.js"));
 
@@ -141,7 +141,11 @@ eq("fronted: legacy channel-less sale counts", frontedShipping([{ lot_id: "g1", 
 eq("fronted: sums across orders", frontedShipping([{ lot_id: "g1", shipping_paid: 5.5, channel: "tcgplayer" }, { lot_id: "g1", shipping_paid: 3.25, channel: "tcgplayer" }], fsLots), 8.75);
 // Mom-fronted postage (DECISIONS #51): never Giovanni's debt to Judah;
 // it lands on the owed-to-Mom ledger instead.
-eq("fronted: mom-paid giovanni sale excluded", frontedShipping([{ lot_id: "g1", shipping_paid: 9.5, channel: "tcgplayer", ship_paid_by: "mom" }], fsLots), 0);
+eq("fronted: mom-paid giovanni sale counts (DECISIONS #66 chain)", frontedShipping([{ lot_id: "g1", shipping_paid: 9.5, channel: "tcgplayer", ship_paid_by: "mom" }], fsLots), 9.5);
+eq("gross share: mine counts item-fees, postage ignored", giovanniShareGross([{ lot_id: "m1", item_price: 400, shipping_charged: 0, fees: 53.9, channel: "tcgplayer" }], fsLots), 346.1);
+eq("gross share: giovanni's own excluded", giovanniShareGross([{ lot_id: "g1", item_price: 400, shipping_charged: 0, fees: 53.9, channel: "tcgplayer" }], fsLots), 0);
+eq("gross share: mom lot counts", giovanniShareGross([{ lot_id: "s1", item_price: 100, shipping_charged: 4, fees: 13.55, channel: "tcgplayer" }], fsLots), 90.45);
+eq("gross share: show sale excluded", giovanniShareGross([{ lot_id: "m1", item_price: 400, shipping_charged: 0, fees: 0, channel: "show_cash" }], fsLots), 0);
 eq("momship: sums mom-paid rows", momShippingOwed([{ lot_id: "g1", shipping_paid: 9.5, ship_paid_by: "mom" }, { lot_id: "m1", shipping_paid: 8.36, ship_paid_by: "mom" }, { lot_id: "m1", shipping_paid: 5.5, ship_paid_by: "judah" }]), 17.86);
 eq("momship: legacy rows count as judah", momShippingOwed([{ lot_id: "m1", shipping_paid: 5.5 }]), 0);
 

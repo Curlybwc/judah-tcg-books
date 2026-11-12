@@ -224,7 +224,7 @@ export default function Balances({ go }: { go: (v: View) => void }) {
         <p className="text-4xl font-black text-slate-900">{money(giovanniOwed)}</p>
         <div className="mt-2 text-slate-800 text-sm">
           <p>Your share of TCGplayer sales: {money(giovanniShare)}</p>
-          {giovanniFronted > 0 && <p>Shipping you fronted on his product: {money(giovanniFronted)}</p>}
+          {giovanniFronted > 0 && <p>Shipping fronted on his product — by you or Mom: {money(giovanniFronted)}</p>}
           <p>He has already paid you back {money(paidBack)} by Zelle.</p>
           {giovanniOwnNet > 0 && <p className="mt-1">His own product sold for {money(giovanniOwnNet)} net — that money is his; it went straight to him.</p>}
         </div>

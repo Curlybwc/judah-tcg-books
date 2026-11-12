@@ -305,9 +305,15 @@ The books live in Supabase project zjsxplnyphejklsdhqxz, set owner_id = '${curre
   const leftOutCount = rows.filter((r, i) => !dupFlags[i] && !overFlags[i] && !r.lotId).length;
   const totals = useMemo(() => {
     let profit = 0, share = 0, net = 0;
-    for (const c of computed) if (c) { profit += c.math.profit; share += c.math.judahShare; net += c.math.netProceeds; }
+    for (const c of computed) if (c) {
+      profit += c.math.profit; net += c.math.netProceeds;
+      // DECISIONS #66: "Giovanni collected for you" is GROSS of postage —
+      // what his payout actually holds for Judah (item − fees). Postage
+      // came out of Mom's bank, not his payout, and settles on its own line.
+      share += c.lot.owner_kind === "giovanni" ? 0 : c.math.netProceeds + (c.firstInOrder ? parseFloat(shipPaid[c.row.orderId]) || 0 : 0);
+    }
     return { profit: Math.round(profit * 100) / 100, share: Math.round(share * 100) / 100, net: Math.round(net * 100) / 100 };
-  }, [computed]);
+  }, [computed, shipPaid]);
 
   async function save() {
     setSaving(true);
@@ -476,7 +482,7 @@ The books live in Supabase project zjsxplnyphejklsdhqxz, set owner_id = '${curre
                 <MathRow label="Shipping you paid" value={`−${money(c.firstInOrder ? parseFloat(shipPaid[c.row.orderId]) || 0 : 0)}`} negative />
                 <MathRow label="Your cost" value={`−${money(c.math.costBasisTotal)}`} negative />
                 <MathRow label="Profit" value={money(c.math.profit)} bold />
-                <p className="text-slate-400 text-sm mt-1">Your share of the money Giovanni collected: <span className="text-white font-bold">{money(c.math.judahShare)}</span> ({ownerLabel(c.lot.owner_kind, c.lot.judah_pct)})</p>
+                <p className="text-slate-400 text-sm mt-1">Your share of the money Giovanni collected: <span className="text-white font-bold">{money(c.lot.owner_kind === "giovanni" ? 0 : c.math.netProceeds + (c.firstInOrder ? parseFloat(shipPaid[c.row.orderId]) || 0 : 0))}</span> ({ownerLabel(c.lot.owner_kind, c.lot.judah_pct)})</p>
               </div>
             ))}
           </div>
