@@ -802,3 +802,19 @@ Balances wording follow. Batch result: Giovanni owes $3,143.09
 ($3,102.98 gross share + $40.11 postage on his sales); Judah owes
 Mom $2,280.75 + $1,000 loan = $3,280.75 (shortfall $137.66).
 Supersedes the settlement figures in #64/#65 (profits unchanged).
+#67 — Jake is a fourth owner (Jen, 2026-11-12: "apparently the UPC
+was Jake's... add jake to the app"). The mystery 13th UPC (Heath
+order, $384.43) was Jake's. His model is a pure pass-through: Gio
+pays Judah the gross minus fees; Judah pays Jake the gross minus
+fees AND shipping. His cost basis is his own business — lots may
+carry $0, his sales never touch Judah's Schedule C (excluded like
+Giovanni's), and his "profit" number is his net proceeds. Built:
+migration 020 ('jake' owner kind + jake_payments), BuyFlow owner
+chip, Profit gains a Jake button, Books gains a Jake memo export,
+Who Owes Who gains a "You owe Jake" card with a payment logger,
+Home's owed total includes Jake. His UPC sale is recorded (actual
+fee $51.65, Mom-paid postage $9.50). Balances now: Giovanni owes
+Judah $3,475.87; Judah owes Jake $323.28; Judah owes Mom $2,290.25
++ $1,000 loan = $3,290.25 (net shortfall still $137.66 — Jake's leg
+passes through clean). Still unowned: Winters' ETB and the One
+Piece single ($102.01 of the payout between them).

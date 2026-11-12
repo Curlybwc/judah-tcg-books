@@ -14,7 +14,7 @@ cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
 cpSync(join(root, "src/lib/quickbuy.ts"), join(tmp, "quickbuy.ts"));
 cpSync(join(root, "src/lib/catalog.ts"), join(tmp, "catalog.ts"));
 execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "quickbuy.ts", "catalog.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
-const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping, momShippingOwed, profitByPerson, personTaxSummary, giovanniShareGross } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping, momShippingOwed, profitByPerson, personTaxSummary, giovanniShareGross, jakeOwed } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
 const { parseQuickBuyLine, allocateShipping } = createRequire(import.meta.url)(join(tmp, "out/quickbuy.js"));
 const { UPC_CATALOG, normalizeBarcode, catalogLookup } = createRequire(import.meta.url)(join(tmp, "out/catalog.js"));
 
@@ -174,6 +174,24 @@ eq("gio memo: net = his profit", scG.netProfit, 257.47);
 const scM = personTaxSummary("mom", 2026, pSales, pLots, noShows, noExp, noPur);
 eq("mom memo: receipts are her items'", scM.grossReceipts, 1921.75);
 eq("mom memo: net = her profit share", scM.netProfit, 161.65);
+
+// ——— Jake (DECISIONS #67): pass-through owner. Fixture = his real UPC sale (Heath order). ———
+const jLots = [...pLots, { id: "L-jake", owner_kind: "jake" }];
+const jakeSale = { lot_id: "L-jake", item_price: 384.43, shipping_charged: 0, shipping_paid: 9.50, fees: 51.65, cost_basis_total: 0, profit: 323.28, mom_share: 0, sold_on: "2026-11-07", channel: "tcgplayer" };
+const jSales = [...pSales, jakeSale];
+const jSplit = profitByPerson(jSales, jLots);
+eq("jake: his bucket holds his proceeds", jSplit.jake, 323.28);
+eq("jake: Judah unchanged by Jake's sale", jSplit.judah, 449.05);
+eq("jake: Gio unchanged", jSplit.giovanni, 257.47);
+const scJ2 = personTaxSummary("judah", 2026, jSales, jLots, noShows, noExp, noPur);
+eq("jake: Schedule C excludes Jake's receipts", scJ2.grossReceipts, 3505.15);
+eq("jake: Schedule C net excludes Jake", scJ2.netProfit, 449.05);
+const scK = personTaxSummary("jake", 2026, jSales, jLots, noShows, noExp, noPur);
+eq("jake memo: receipts are his sale", scK.grossReceipts, 384.43);
+eq("jake memo: net = gross - fees - shipping", scK.netProfit, 323.28);
+eq("jake: Gio owes the gross on Jake's stock too", giovanniShareGross([jakeSale], jLots), 332.78);
+eq("jake: owed = gross - fees - shipping", jakeOwed([jakeSale], jLots, 0), 323.28);
+eq("jake: owed drops by payments", jakeOwed([jakeSale], jLots, 100), 223.28);
 
 console.log(fails === 0 ? "ALL MATH TESTS PASSED" : `${fails} FAILURES`);
 process.exit(fails ? 1 : 0);

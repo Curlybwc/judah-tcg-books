@@ -6,7 +6,7 @@ import { JobButton } from "../components/ui";
 import type { View } from "../App";
 
 export default function Home({ go }: { go: (v: View) => void }) {
-  const { totalProfit, userEmail, remote, ready, activeShow, pendingCount, syncNow, loans, loanPayments, giovanniOwed, momOwed } = useStore();
+  const { totalProfit, userEmail, remote, ready, activeShow, pendingCount, syncNow, loans, loanPayments, giovanniOwed, momOwed, jakeOwed } = useStore();
   const [checking, setChecking] = useState(false);
   const totalOwed = loans.reduce((sum, loan) => {
     const paid = loanPayments.filter((p) => p.loan_id === loan.id).reduce((a, p) => a + Number(p.amount), 0);
@@ -45,7 +45,7 @@ export default function Home({ go }: { go: (v: View) => void }) {
         <JobButton emoji="🎪" label="Show Mode" sub={activeShow ? `LIVE: ${activeShow.name} — tap to go back in` : "Show day? Buy and sell at the table here"} onClick={() => go("show")} />
         <JobButton emoji="💸" label="Sales" sub="Upload the orders file from TCGplayer" onClick={() => go("sell")} />
         <JobButton emoji="📷" label="Price Scanner" sub="What is this worth right now?" onClick={() => go("scan")} />
-        <JobButton emoji="🤝" label="Who Owes Who" sub={(() => { const youOwe = totalOwed + momOwed; const parts: string[] = []; if (giovanniOwed > 0) parts.push(`Giovanni owes you ${money(giovanniOwed)}`); if (youOwe > 0) parts.push(`You owe ${money(youOwe)}`); return parts.length ? parts.join(" · ") : "Giovanni, Mom & loans — every balance in one place"; })()} onClick={() => go("balances")} />
+        <JobButton emoji="🤝" label="Who Owes Who" sub={(() => { const youOwe = totalOwed + momOwed + jakeOwed; const parts: string[] = []; if (giovanniOwed > 0) parts.push(`Giovanni owes you ${money(giovanniOwed)}`); if (youOwe > 0) parts.push(`You owe ${money(youOwe)}`); return parts.length ? parts.join(" · ") : "Giovanni, Mom & loans — every balance in one place"; })()} onClick={() => go("balances")} />
         <JobButton emoji="📈" label="Profit" sub="Week, month, and all time" onClick={() => go("profit")} />
       </div>
 

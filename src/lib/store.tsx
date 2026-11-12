@@ -1,9 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { priceProvider, type PriceResult } from "./priceProvider";
-import { frontedShipping, momShippingOwed, profitByPerson, giovanniShareGross } from "./math";
+import { frontedShipping, momShippingOwed, profitByPerson, giovanniShareGross, jakeOwed } from "./math";
 import { SAMPLE_OWNER_ID } from "./config";
-import type { BookMember, BookSet, Expense, ExpenseCategory, GiovanniPayment, Loan, LoanInput, LoanPayment, Lot, MomPayment, Product, Purchase, Sale, Show } from "./types";
+import type { BookMember, BookSet, Expense, ExpenseCategory, GiovanniPayment, JakePayment, Loan, LoanInput, LoanPayment, Lot, MomPayment, Product, Purchase, Sale, Show } from "./types";
 import { blobToDataUrl, compressImageFile } from "./photos";
 import { momProfitShare, purchaseMath, quickSaleMath, saleMath, taxFromRate } from "./math";
 
@@ -23,14 +23,14 @@ const SEED_LOTS: Lot[] = [
   { id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc2", owner_id: SAMPLE_OWNER_ID, product_id: SEED_PRODUCTS[1].id, purchase_id: SEED_PURCHASES[1].id, qty_on_hand: 6, cost_basis_unit: 32, owner_kind: "split", judah_pct: 50 },
 ];
 
-interface LocalData { products: Product[]; purchases: Purchase[]; lots: Lot[]; sales: Sale[]; payments: GiovanniPayment[]; shows: Show[]; momPayments: MomPayment[]; expenses: Expense[]; loans: Loan[]; loanPayments: LoanPayment[]; }
+interface LocalData { products: Product[]; purchases: Purchase[]; lots: Lot[]; sales: Sale[]; payments: GiovanniPayment[]; jakePayments: JakePayment[]; shows: Show[]; momPayments: MomPayment[]; expenses: Expense[]; loans: Loan[]; loanPayments: LoanPayment[]; }
 const LOCAL_KEY = "jtb-local-v1";
 function loadLocal(): LocalData {
   try {
     const raw = localStorage.getItem(LOCAL_KEY);
     if (raw) { const d = JSON.parse(raw) as LocalData; if (!d.shows) d.shows = []; if (!d.momPayments) d.momPayments = []; if (!d.expenses) d.expenses = []; if (!d.loans) d.loans = []; if (!d.loanPayments) d.loanPayments = []; return d; }
   } catch { /* ignore */ }
-  return { products: SEED_PRODUCTS, purchases: SEED_PURCHASES, lots: SEED_LOTS, sales: [], payments: [], shows: [], momPayments: [], expenses: [], loans: [], loanPayments: [] };
+  return { products: SEED_PRODUCTS, purchases: SEED_PURCHASES, lots: SEED_LOTS, sales: [], payments: [], jakePayments: [], shows: [], momPayments: [], expenses: [], loans: [], loanPayments: [] };
 }
 
 // ---------- Offline outbox: writes made with no signal queue here and push later ----------
@@ -70,6 +70,11 @@ interface Store {
   lots: Lot[];
   sales: Sale[];
   payments: GiovanniPayment[];
+  jakePayments: JakePayment[];
+  jakeOwed: number;
+  jakeBreakdown: { gross: number; shipping: number; paid: number };
+  addJakePayment: (amount: number, paidOn: string, note: string) => Promise<void>;
+  deleteJakePayment: (id: string) => Promise<void>;
   shows: Show[];
   momPayments: MomPayment[];
   expenses: Expense[];
@@ -107,13 +112,13 @@ interface Store {
   signIn: (email: string, password: string) => Promise<string | null>;
   signInWithGoogle: () => Promise<string | null>;
   signOut: () => Promise<void>;
-  addPurchase: (input: { name: string; barcode?: string; qty: number; unitPrice: number; taxRate: number; shippingIn: number; ownerKind: "mine" | "giovanni" | "split" | "mom_payback" | "mom_split"; judahPct: number; paidVia: "USAA" | "Cash" | "Other"; showId?: string }) => Promise<Purchase>;
+  addPurchase: (input: { name: string; barcode?: string; qty: number; unitPrice: number; taxRate: number; shippingIn: number; ownerKind: "mine" | "giovanni" | "split" | "mom_payback" | "mom_split" | "jake"; judahPct: number; paidVia: "USAA" | "Cash" | "Other"; showId?: string }) => Promise<Purchase>;
   recordSales: (rows: { lot: Lot; qty: number; unitItemPrice: number; shippingCharged: number; shippingPaid: number; shipPaidBy?: string; orderId: string | null; soldOn: string; orderGroupFirst?: boolean }[]) => Promise<Sale[]>;
   addGiovanniPayment: (amount: number, paidOn: string, note: string) => Promise<void>;
   deleteSale: (sale: Sale) => Promise<void>;
   adjustStock: (lot: Lot, qtyRemoved: number, reason: string) => Promise<void>;
   undoPurchaseForLot: (lot: Lot) => Promise<boolean>;
-  updatePurchase: (lot: Lot, input: { name: string; barcode: string | null; qty: number; unitPrice: number; taxRate: number; shippingIn: number; ownerKind: "mine" | "giovanni" | "split" | "mom_payback" | "mom_split"; judahPct: number; paidVia: "USAA" | "Cash" | "Other" }) => Promise<string | null>;
+  updatePurchase: (lot: Lot, input: { name: string; barcode: string | null; qty: number; unitPrice: number; taxRate: number; shippingIn: number; ownerKind: "mine" | "giovanni" | "split" | "mom_payback" | "mom_split" | "jake"; judahPct: number; paidVia: "USAA" | "Cash" | "Other" }) => Promise<string | null>;
   deleteGiovanniPayment: (id: string) => Promise<void>;
   recordBankImport: (filename: string, rowCount: number) => Promise<void>;
   reload: () => Promise<void>;
@@ -127,7 +132,7 @@ export function useStore(): Store {
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [data, setData] = useState<LocalData>({ products: [], purchases: [], lots: [], sales: [], payments: [], shows: [], momPayments: [], expenses: [], loans: [], loanPayments: [] });
+  const [data, setData] = useState<LocalData>({ products: [], purchases: [], lots: [], sales: [], payments: [], jakePayments: [], shows: [], momPayments: [], expenses: [], loans: [], loanPayments: [] });
   const [outbox, setOutbox] = useState<OutboxOp[]>(() => loadOutbox());
   const outboxRef = useRef<OutboxOp[]>(outbox);
   const [ready, setReady] = useState(false);
@@ -149,25 +154,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const load = useCallback(async (owner: string) => {
     try {
-      const [p, pu, l, s, g, sh, mp, ex, lo, lp] = await Promise.all([
+      const [p, pu, l, s, g, jp, sh, mp, ex, lo, lp] = await Promise.all([
         supabase.from("products").select("*").eq("owner_id", owner),
         supabase.from("purchases").select("*").eq("owner_id", owner).order("purchased_on", { ascending: false }),
         supabase.from("inventory_lots").select("*").eq("owner_id", owner),
         supabase.from("sales").select("*").eq("owner_id", owner).order("sold_on", { ascending: false }),
         supabase.from("giovanni_payments").select("*").eq("owner_id", owner).order("paid_on", { ascending: false }),
+        supabase.from("jake_payments").select("*").eq("owner_id", owner).order("paid_on", { ascending: false }),
         supabase.from("shows").select("*").eq("owner_id", owner).order("show_date", { ascending: false }),
         supabase.from("mom_payments").select("*").eq("owner_id", owner).order("paid_on", { ascending: false }),
         supabase.from("expenses").select("*").eq("owner_id", owner).order("spent_on", { ascending: false }),
         supabase.from("loans").select("*").eq("owner_id", owner).order("borrowed_on", { ascending: false }),
         supabase.from("loan_payments").select("*").eq("owner_id", owner).order("paid_on", { ascending: false }),
       ]);
-      if (p.error || pu.error || l.error || s.error || g.error || sh.error || mp.error || ex.error || lo.error || lp.error) throw new Error("supabase read failed");
+      if (p.error || pu.error || l.error || s.error || g.error || jp.error || sh.error || mp.error || ex.error || lo.error || lp.error) throw new Error("supabase read failed");
       const d: LocalData = {
         products: (p.data ?? []) as Product[],
         purchases: (pu.data ?? []) as Purchase[],
         lots: (l.data ?? []) as Lot[],
         sales: (s.data ?? []) as Sale[],
         payments: (g.data ?? []) as GiovanniPayment[],
+        jakePayments: (jp.data ?? []) as JakePayment[],
         shows: (sh.data ?? []) as Show[],
         momPayments: (mp.data ?? []) as MomPayment[],
         expenses: (ex.data ?? []) as Expense[],
@@ -225,7 +232,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // Signed in but in no set yet: the gate screen offers create/join.
         setSets([]); setMembers([]); setCurrentSetId(null);
         setOwnerId(""); ownerRef.current = "";
-        setData({ products: [], purchases: [], lots: [], sales: [], payments: [], shows: [], momPayments: [], expenses: [], loans: [], loanPayments: [] });
+        setData({ products: [], purchases: [], lots: [], sales: [], payments: [], jakePayments: [], shows: [], momPayments: [], expenses: [], loans: [], loanPayments: [] });
         setRemote(true); remoteRef.current = true; setReady(true);
         return;
       }
@@ -397,7 +404,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       id: uuid(), owner_id: owner, product_id: product?.id ?? null, product_name: input.name,
       qty: input.qty, unit_price: input.unitPrice, tax, tax_rate: input.taxRate > 0 ? input.taxRate : null, shipping_in: input.shippingIn,
       total_cost: totalCost, cost_basis_unit: costBasisUnit, owner_kind: input.ownerKind,
-      judah_pct: input.ownerKind === "mine" || input.ownerKind === "mom_payback" || input.ownerKind === "mom_split" ? 100 : input.ownerKind === "giovanni" ? 0 : input.judahPct,
+      judah_pct: input.ownerKind === "mine" || input.ownerKind === "mom_payback" || input.ownerKind === "mom_split" || input.ownerKind === "jake" ? 100 : input.ownerKind === "giovanni" ? 0 : input.judahPct,
       paid_via: input.paidVia, purchased_on: new Date().toISOString().slice(0, 10),
       show_id: input.showId ?? null,
     };
@@ -794,6 +801,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return Math.round(data.sales.filter((x) => (!x.channel || x.channel === "tcgplayer") && x.lot_id && kind.get(x.lot_id) === "giovanni").reduce((s, x) => s + Number(x.net_proceeds), 0) * 100) / 100;
   }, [data.sales, data.lots]);
 
+  const jakeBreakdown = useMemo(() => {
+    const kind = new Map(data.lots.map((l) => [l.id, l.owner_kind]));
+    let gross = 0, shipping = 0;
+    for (const x of data.sales) {
+      if (x.channel && x.channel !== "tcgplayer") continue;
+      if (!x.lot_id || kind.get(x.lot_id) !== "jake") continue;
+      gross += (Number(x.item_price) || 0) + (Number(x.shipping_charged) || 0) - (Number(x.fees) || 0);
+      shipping += Number(x.shipping_paid) || 0;
+    }
+    const paid = data.jakePayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    return { gross: Math.round(gross * 100) / 100, shipping: Math.round(shipping * 100) / 100, paid: Math.round(paid * 100) / 100 };
+  }, [data.sales, data.lots, data.jakePayments]);
+  const jakeOwedTotal = useMemo(() => jakeOwed(data.sales, data.lots, data.jakePayments.reduce((sum, p) => sum + Number(p.amount), 0)), [data.sales, data.lots, data.jakePayments]);
+
+  const addJakePayment: Store["addJakePayment"] = useCallback(async (amount, paidOn, note) => {
+    const payment: JakePayment = { id: uuid(), owner_id: ownerRef.current, amount, paid_on: paidOn, note: note || null };
+    if (remoteRef.current) {
+      try { const r = await supabase.from("jake_payments").insert(payment); if (r.error) throw r.error; }
+      catch { setNotice("Saved on this phone only — couldn't reach the cloud."); }
+    }
+    applyLocal((d) => ({ ...d, jakePayments: [payment, ...d.jakePayments] }));
+  }, [applyLocal]);
+
+  const deleteJakePayment: Store["deleteJakePayment"] = useCallback(async (id) => {
+    if (remoteRef.current) {
+      try { const d = await supabase.from("jake_payments").delete().eq("id", id); if (d.error) throw d.error; }
+      catch { setNotice("Couldn't delete that in the cloud — check your connection and try again."); return; }
+    }
+    applyLocal((d) => ({ ...d, jakePayments: d.jakePayments.filter((p) => p.id !== id) }));
+  }, [applyLocal]);
+
   const giovanniOwed = useMemo(() => {
     // Giovanni's balance is a TCGplayer-only number: he collects those payouts.
     // Show sales are cash/Venmo in Judah's own hand, so they never enter it.
@@ -813,7 +851,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
     shows: data.shows, activeShow, pendingCount: outbox.length, syncNow, startShow, closeShow, recordQuickSale,
     momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, loans: data.loans, loanPayments: data.loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment, refreshMarketPrice, applyIdentified, priceKeyInBooks, savePriceKey, setProductImage, uploadProductPhoto, momOwed, momShipOwed, giovanniShare, giovanniFronted, giovanniOwnNet, addMomPayment, deleteMomPayment, bulkRemoveLots,
-    giovanniOwed, totalProfit, signIn, signInWithGoogle, signOut, addPurchase, updatePurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
+    giovanniOwed, jakePayments: data.jakePayments, jakeOwed: jakeOwedTotal, jakeBreakdown, addJakePayment, deleteJakePayment, totalProfit, signIn, signInWithGoogle, signOut, addPurchase, updatePurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
     reload: () => load(ownerRef.current),
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

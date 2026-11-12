@@ -158,6 +158,7 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
           <div className="grid gap-3 mb-4">
             <PickBtn active={ownerKind === "mine"} onClick={() => setOwnerKind("mine")} label="🟡 Mine — I paid for it" />
             <PickBtn active={ownerKind === "giovanni"} onClick={() => setOwnerKind("giovanni")} label="🔵 Giovanni's — he paid for it" />
+            <PickBtn active={ownerKind === "jake"} onClick={() => setOwnerKind("jake")} label="🟢 Jake's — he paid for it" />
             <PickBtn active={ownerKind === "split"} onClick={() => setOwnerKind("split")} label="🟣 We split it" />
             <PickBtn active={ownerKind === "mom_payback"} onClick={() => setOwnerKind("mom_payback")} label="🟦 Mom paid — I owe her the cost + half the profit" />
           </div>

@@ -1,4 +1,4 @@
-export type OwnerKind = "mine" | "giovanni" | "split" | "mom_payback" | "mom_split";
+export type OwnerKind = "mine" | "giovanni" | "split" | "mom_payback" | "mom_split" | "jake";
 export type PaidVia = "USAA" | "Cash" | "Other";
 
 export interface Product {
@@ -104,6 +104,14 @@ export interface GiovanniPayment {
   paid_on: string;
   note: string | null;
   created_at?: string;
+}
+
+export interface JakePayment {
+  id: string;
+  owner_id: string;
+  amount: number;
+  paid_on: string;
+  note: string | null;
 }
 
 // A repayment from Judah to Mom (Jen) against the owed-to-Mom ledger.

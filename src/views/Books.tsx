@@ -76,7 +76,7 @@ export default function Books() {
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    a.download = person === "judah" ? `schedule-c-judah-${year}.csv` : person === "giovanni" ? `giovanni-numbers-${year}.csv` : `mom-numbers-${year}.csv`;
+    a.download = person === "judah" ? `schedule-c-judah-${year}.csv` : person === "giovanni" ? `giovanni-numbers-${year}.csv` : person === "jake" ? `jake-numbers-${year}.csv` : `mom-numbers-${year}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -89,6 +89,7 @@ export default function Books() {
           <option value="judah">Judah — the Schedule C</option>
           <option value="giovanni">Giovanni — his numbers (memo, not on Judah's Schedule C)</option>
           <option value="mom">Mom — her numbers (memo)</option>
+          <option value="jake">Jake — his numbers (memo)</option>
         </select>
       </Field>
       <Field label="Tax year">

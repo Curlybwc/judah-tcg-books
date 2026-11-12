@@ -150,7 +150,7 @@ export function momProfitShare(profit: number): number {
 // stock → Judah's; Mom's stock → split — her recorded mom_share is her
 // profit, the rest of that sale's profit is Judah's (he sold it). And
 // the Schedule C is Judah's alone: Giovanni's numbers never touch it.
-export type ProfitPerson = "judah" | "giovanni" | "mom";
+export type ProfitPerson = "judah" | "giovanni" | "mom" | "jake";
 export const isMomKind = (kind: string) => kind === "mom_payback" || kind === "mom_split";
 export function kindOfLot(lots: LotKind[], lotId: string | null | undefined): string {
   if (!lotId) return "mine"; // lot-less rows (e.g. show sales) are Judah's business
@@ -159,6 +159,7 @@ export function kindOfLot(lots: LotKind[], lotId: string | null | undefined): st
 export function profitForPerson(person: ProfitPerson, sale: { profit: number; mom_share?: number | null }, kind: string): number {
   const profit = Number(sale.profit);
   if (kind === "giovanni") return person === "giovanni" ? profit : 0;
+  if (kind === "jake") return person === "jake" ? profit : 0;
   if (isMomKind(kind)) {
     const ms = Number(sale.mom_share ?? 0);
     if (person === "mom") return ms;
@@ -168,12 +169,13 @@ export function profitForPerson(person: ProfitPerson, sale: { profit: number; mo
   return person === "judah" ? profit : 0;
 }
 export function profitByPerson(sales: { lot_id?: string | null; profit: number; mom_share?: number | null }[], lots: LotKind[]): Record<ProfitPerson, number> {
-  const out: Record<ProfitPerson, number> = { judah: 0, giovanni: 0, mom: 0 };
+  const out: Record<ProfitPerson, number> = { judah: 0, giovanni: 0, mom: 0, jake: 0 };
   for (const s of sales) {
     const kind = kindOfLot(lots, s.lot_id);
     out.judah = round2(out.judah + profitForPerson("judah", s, kind));
     out.giovanni = round2(out.giovanni + profitForPerson("giovanni", s, kind));
     out.mom = round2(out.mom + profitForPerson("mom", s, kind));
+    out.jake = round2(out.jake + profitForPerson("jake", s, kind));
   }
   return out;
 }
@@ -193,8 +195,9 @@ export function personTaxSummary(
   purchases: PersonPurchase[],
 ): PersonTaxSummary {
   const kind = (s: TaxSale) => kindOfLot(lots, s.lot_id);
-  const scopedSales = sales.filter((s) => person === "judah" ? kind(s) !== "giovanni" : person === "giovanni" ? kind(s) === "giovanni" : isMomKind(kind(s)));
-  const scopedPurchases = purchases.filter((p) => person === "judah" ? p.owner_kind !== "giovanni" : person === "giovanni" ? p.owner_kind === "giovanni" : isMomKind(p.owner_kind));
+  const inScope = (k: string) => person === "judah" ? (k !== "giovanni" && k !== "jake") : person === "giovanni" ? k === "giovanni" : person === "jake" ? k === "jake" : isMomKind(k);
+  const scopedSales = sales.filter((s) => inScope(kind(s)));
+  const scopedPurchases = purchases.filter((p) => inScope(p.owner_kind));
   const base = taxSummary(year, scopedSales, person === "judah" ? shows : [], person === "judah" ? expenses : [], scopedPurchases);
   const inYear = (d: string) => d.startsWith(String(year));
   const momSales = sales.filter((s) => inYear(s.sold_on) && isMomKind(kind(s)));
@@ -252,6 +255,24 @@ export function frontedShipping(sales: FrontedSale[], lots: LotKind[]): number {
     if (s.lot_id && kind.get(s.lot_id) === "giovanni") total += Number(s.shipping_paid) || 0;
   }
   return round2(total);
+}
+
+export interface JakeSale { lot_id: string | null; item_price: number; shipping_charged: number; fees: number; shipping_paid: number; channel?: string | null }
+
+/** What Judah owes Jake (DECISIONS #67, Jen 2026-11-12): Jake's product
+ *  sells on the shared account as a pass-through — Giovanni pays Judah
+ *  the gross minus fees (counted inside giovanniShareGross), and Judah
+ *  pays Jake the gross minus fees AND shipping. Jake's own cost basis
+ *  is Jake's business, never Judah's income. */
+export function jakeOwed(sales: JakeSale[], lots: LotKind[], paymentsTotal: number): number {
+  const kind = new Map(lots.map((l) => [l.id, l.owner_kind]));
+  let total = 0;
+  for (const s of sales) {
+    if (s.channel && s.channel !== "tcgplayer") continue;
+    if (!s.lot_id || kind.get(s.lot_id) !== "jake") continue;
+    total += (Number(s.item_price) || 0) + (Number(s.shipping_charged) || 0) - (Number(s.fees) || 0) - (Number(s.shipping_paid) || 0);
+  }
+  return round2(total - paymentsTotal);
 }
 
 export interface ShareSale { lot_id: string | null; item_price: number; shipping_charged: number; fees: number; channel?: string | null }

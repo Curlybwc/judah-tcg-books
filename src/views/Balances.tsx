@@ -105,7 +105,8 @@ function LoanForm({ initial, onSave, onCancel }: {
 export default function Balances({ go }: { go: (v: View) => void }) {
   const { loans, loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment,
     giovanniOwed, giovanniShare, giovanniFronted, giovanniOwnNet, payments, addGiovanniPayment, deleteGiovanniPayment,
-    momOwed, momShipOwed, momPayments, addMomPayment, deleteMomPayment, purchases, sales, lots } = useStore();
+    momOwed, momShipOwed, momPayments, addMomPayment, deleteMomPayment, purchases, sales, lots,
+    jakeOwed, jakeBreakdown, jakePayments, addJakePayment } = useStore();
   const profitSplit = useMemo(() => profitByPerson(sales, lots), [sales, lots]);
   const [mode, setMode] = useState<"list" | "new" | "detail" | "edit">("list");
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -117,6 +118,8 @@ export default function Balances({ go }: { go: (v: View) => void }) {
   const [gioNote, setGioNote] = useState("");
   const [confirmGioId, setConfirmGioId] = useState<string | null>(null);
   const [momAmount, setMomAmount] = useState("");
+  const [jakeAmount, setJakeAmount] = useState("");
+  const [jakeNote, setJakeNote] = useState("");
   const [confirmMomId, setConfirmMomId] = useState<string | null>(null);
 
   const paidByLoan = useMemo(() => {
@@ -209,13 +212,14 @@ export default function Balances({ go }: { go: (v: View) => void }) {
 
   return (
     <div>
-      <ScreenTitle title="🤝 Who Owes Who" sub="Every balance with everybody — Giovanni, Mom, and loans — in one place." />
+      <ScreenTitle title="🤝 Who Owes Who" sub="Every balance with everybody — Giovanni, Mom, Jake, and loans — in one place." />
       <div className="rounded-3xl bg-slate-800 border border-slate-700 p-4 mb-4">
         <p className="text-slate-400 font-semibold text-sm mb-2">Profit so far — each person's own</p>
         <div className="flex gap-2 text-center">
           <div className="flex-1"><p className="text-slate-400 text-xs font-bold">JUDAH</p><p className="text-emerald-400 font-black text-lg">{money(profitSplit.judah)}</p></div>
           <div className="flex-1"><p className="text-slate-400 text-xs font-bold">GIO</p><p className="text-emerald-400 font-black text-lg">{money(profitSplit.giovanni)}</p></div>
           <div className="flex-1"><p className="text-slate-400 text-xs font-bold">MOM</p><p className="text-emerald-400 font-black text-lg">{money(profitSplit.mom)}</p></div>
+          <div className="flex-1"><p className="text-slate-400 text-xs font-bold">JAKE</p><p className="text-emerald-400 font-black text-lg">{money(profitSplit.jake)}</p></div>
         </div>
       </div>
 
@@ -284,7 +288,37 @@ export default function Balances({ go }: { go: (v: View) => void }) {
         )}
       </div>
 
-      <div className="rounded-3xl bg-slate-800 border border-slate-700 p-5 mb-3">
+            <div className="rounded-3xl bg-slate-800 border border-emerald-800/60 p-5 mb-3">
+        <p className="text-emerald-300 font-semibold text-sm">You owe Jake</p>
+        <p className="text-4xl font-black text-white">{money(jakeOwed)}</p>
+        <p className="text-slate-400 text-sm">His product sells on the shared account too. Giovanni pays you the gross minus fees; you pass Jake the gross minus fees and shipping. What Jake paid for his product is his own business.</p>
+        <div className="text-slate-400 text-sm mt-2">
+          <p>His sales after fees: {money(jakeBreakdown.gross)}</p>
+          {jakeBreakdown.shipping > 0 && <p>Less shipping on his product: {money(jakeBreakdown.shipping)}</p>}
+          <p>You've paid him {money(jakeBreakdown.paid)} so far.</p>
+        </div>
+        <div className="flex gap-2 mt-3">
+          <div className="flex-1"><MoneyInput value={jakeAmount} onChange={setJakeAmount} placeholder="0.00" /></div>
+          <button
+            disabled={!(parseFloat(jakeAmount) > 0)}
+            onClick={() => { void addJakePayment(parseFloat(jakeAmount), today(), jakeNote.trim()); setJakeAmount(""); setJakeNote(""); }}
+            className="rounded-2xl bg-emerald-500 text-slate-900 px-4 font-bold disabled:opacity-40">
+            You paid Jake
+          </button>
+        </div>
+        <input className="w-full mt-2 rounded-xl bg-slate-700 border border-slate-600 px-3 py-2 text-white placeholder:text-slate-400" placeholder="Note (optional)" value={jakeNote} onChange={(e) => setJakeNote(e.target.value)} />
+        {jakePayments.length > 0 && (
+          <div className="grid gap-1.5 mt-3">
+            {jakePayments.slice(0, 5).map((p) => (
+              <div key={p.id} className="flex justify-between items-center rounded-xl bg-slate-700/60 px-3 py-2">
+                <span className="text-slate-200 text-sm">You paid him {money(Number(p.amount))} · {p.paid_on}{p.note ? ` · ${p.note}` : ""}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+<div className="rounded-3xl bg-slate-800 border border-slate-700 p-5 mb-3">
         <div className="flex items-baseline justify-between mb-1">
           <p className="text-white font-bold text-lg">💳 Money you borrowed</p>
           <p className="text-rose-300 font-black text-xl">{money(totalOwed)} <span className="text-sm font-semibold">owed</span></p>

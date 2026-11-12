@@ -10,14 +10,14 @@ export default function Profit({ go }: { go: (v: import("../App").View) => void 
   const { sales, lots, products, deleteSale } = useStore();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [person, setPerson] = useState<ProfitPerson>("judah");
-  const belongs = (kind: string) => person === "judah" ? kind !== "giovanni" : person === "giovanni" ? kind === "giovanni" : isMomKind(kind);
+  const belongs = (kind: string) => person === "judah" ? (kind !== "giovanni" && kind !== "jake") : person === "giovanni" ? kind === "giovanni" : person === "jake" ? kind === "jake" : isMomKind(kind);
   const { week, month, all, weekCount, split } = useMemo(() => {
     const w = startOfWeek().getTime(), m = startOfMonth().getTime();
     let week = 0, month = 0, all = 0, weekCount = 0;
-    const split: Record<ProfitPerson, number> = { judah: 0, giovanni: 0, mom: 0 };
+    const split: Record<ProfitPerson, number> = { judah: 0, giovanni: 0, mom: 0, jake: 0 };
     for (const s of sales) {
       const kind = kindOfLot(lots, s.lot_id);
-      for (const p of ["judah", "giovanni", "mom"] as ProfitPerson[]) split[p] += profitForPerson(p, s, kind);
+      for (const p of ["judah", "giovanni", "mom", "jake"] as ProfitPerson[]) split[p] += profitForPerson(p, s, kind);
       const mine = profitForPerson(person, s, kind);
       const t = new Date(s.sold_on + "T12:00:00").getTime();
       all += mine;
@@ -43,7 +43,7 @@ export default function Profit({ go }: { go: (v: import("../App").View) => void 
     <div>
       <ScreenTitle title="📈 Profit" sub="Whose profit? Tap a name — the numbers below are that person's." />
       <div className="flex gap-2 mb-4">
-        {( [["judah", "Judah"], ["giovanni", "Gio"], ["mom", "Mom"]] as [ProfitPerson, string][]).map(([p, label]) => (
+        {( [["judah", "Judah"], ["giovanni", "Gio"], ["mom", "Mom"], ["jake", "Jake"]] as [ProfitPerson, string][]).map(([p, label]) => (
           <button key={p} onClick={() => setPerson(p)} className={`flex-1 rounded-2xl border-2 py-3 font-black ${person === p ? "bg-emerald-500 border-emerald-400 text-slate-900" : "bg-slate-800 border-slate-700 text-slate-200"}`}>
             {label}<span className="block text-sm font-bold">{money(split[p])}</span>
           </button>
@@ -65,7 +65,7 @@ export default function Profit({ go }: { go: (v: import("../App").View) => void 
         </div>
       </div>
 
-      <h2 className="text-white font-bold text-lg mb-2">Recent sales — {person === "judah" ? "Judah" : person === "giovanni" ? "Gio" : "Mom"}</h2>
+      <h2 className="text-white font-bold text-lg mb-2">Recent sales — {person === "judah" ? "Judah" : person === "giovanni" ? "Gio" : person === "jake" ? "Jake" : "Mom"}</h2>
       {sales.length === 0 && <p className="text-slate-400">No sales yet. TCGplayer sales show up when you upload the packing slips; show sales show up from Show Mode.</p>}
       <div className="grid gap-2">
         {sales.filter((s) => belongs(kindOfLot(lots, s.lot_id))).slice(0, 10).map((s) => (
