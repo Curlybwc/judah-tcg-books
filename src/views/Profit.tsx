@@ -25,7 +25,7 @@ export default function Profit({ go }: { go: (v: import("../App").View) => void 
       if (t >= w) { week += mine; if (belongs(kind)) weekCount++; }
     }
     const r = (n: number) => Math.round(n * 100) / 100;
-    return { week: r(week), month: r(month), all: r(all), weekCount, split: { judah: r(split.judah), giovanni: r(split.giovanni), mom: r(split.mom) } };
+    return { week: r(week), month: r(month), all: r(all), weekCount, split: { judah: r(split.judah), giovanni: r(split.giovanni), mom: r(split.mom), jake: r(split.jake) } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sales, lots, person]);
 
