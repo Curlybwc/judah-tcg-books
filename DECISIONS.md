@@ -740,3 +740,13 @@ $217.36 / Mom $129.02 ($721.53 total); owed to Mom $2,285.20;
 Giovanni owes Judah $2,930.93. Standing routine from here: packing
 slips for what sold, Shipments export for what postage cost —
 both pair by name, no guessing.
+#62 — The Pirate Ship link lives in the app (Jen, 2026-11-12, with
+the URL: https://ship.pirateship.com/reports/shipment — "that's
+where I found it — link should go into the app"). Sales → Shipping
+step now links straight to the Shipments report and tells the
+routine in those words: Reports → Shipments → Export → upload
+here; the app pairs labels to orders by buyer name. Proven before
+shipping: the app's existing Pirate Ship parser reads Jen's real
+Shipments.xlsx cleanly (31 rows; Saucier $17.24, Bader $17.87, Hass
+$9.55 by name). The old "Shipments grid, add the Order ID column"
+instruction is retired — the report needs no column setup.
