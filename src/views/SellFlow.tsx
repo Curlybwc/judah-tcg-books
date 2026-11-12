@@ -335,6 +335,7 @@ The books live in Supabase project zjsxplnyphejklsdhqxz, set owner_id = '${curre
             <p>1. Open TCGplayer → Seller Portal → Orders.</p>
             <p>2. Tick the orders you shipped, then <b className="text-white">Print packing slips</b> and save the PDF.</p>
             <p>3. Upload that PDF here. The slips name every item in every order — the plain orders export only gives totals, and totals can't say what was in the box.</p>
+            <p className="mt-3"><a href="https://sellerportal.tcgplayer.com/orders?searchRange=LastThreeMonths&searchField=buyer&page=1&size=25&sortBy=orderStatus,asc&sortBy=shippingAmount,desc&sortBy=orderDate,desc" target="_blank" rel="noreferrer" className="inline-block rounded-xl bg-slate-700 text-white px-4 py-2.5 font-bold">🔗 Open TCGplayer — Orders</a></p>
           </div>
           <input ref={slipsRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleSlipsFile(f); e.target.value = ""; }} />
           <BigButton onClick={() => slipsRef.current?.click()}>🧾 Upload the packing slips</BigButton>

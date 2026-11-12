@@ -750,3 +750,8 @@ shipping: the app's existing Pirate Ship parser reads Jen's real
 Shipments.xlsx cleanly (31 rows; Saucier $17.24, Bader $17.87, Hass
 $9.55 by name). The old "Shipments grid, add the Order ID column"
 instruction is retired — the report needs no column setup.
+#63 — The TCGplayer Orders link lives in the app too (Jen pasted
+the seller-portal Orders URL, 2026-11-12): Sales step 1's packing-
+slip instructions now carry an "Open TCGplayer — Orders" button
+beside the Pirate Ship Shipments-report link on the shipping step.
+Both source pages are one tap from the step that uses them.
