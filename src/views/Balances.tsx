@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../lib/store";
-import { loanMath, money } from "../lib/math";
+import { loanMath, money, profitByPerson } from "../lib/math";
 import { BigButton, Chip, Field, MathRow, MoneyInput, ScreenTitle, inputCls } from "../components/ui";
 import type { View } from "../App";
 import type { InterestType, Loan, LoanInput } from "../lib/types";
@@ -105,7 +105,8 @@ function LoanForm({ initial, onSave, onCancel }: {
 export default function Balances({ go }: { go: (v: View) => void }) {
   const { loans, loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment,
     giovanniOwed, giovanniShare, giovanniFronted, giovanniOwnNet, payments, addGiovanniPayment, deleteGiovanniPayment,
-    momOwed, momShipOwed, momPayments, addMomPayment, deleteMomPayment, purchases } = useStore();
+    momOwed, momShipOwed, momPayments, addMomPayment, deleteMomPayment, purchases, sales, lots } = useStore();
+  const profitSplit = useMemo(() => profitByPerson(sales, lots), [sales, lots]);
   const [mode, setMode] = useState<"list" | "new" | "detail" | "edit">("list");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState("");
@@ -209,6 +210,14 @@ export default function Balances({ go }: { go: (v: View) => void }) {
   return (
     <div>
       <ScreenTitle title="🤝 Who Owes Who" sub="Every balance with everybody — Giovanni, Mom, and loans — in one place." />
+      <div className="rounded-3xl bg-slate-800 border border-slate-700 p-4 mb-4">
+        <p className="text-slate-400 font-semibold text-sm mb-2">Profit so far — each person's own</p>
+        <div className="flex gap-2 text-center">
+          <div className="flex-1"><p className="text-slate-400 text-xs font-bold">JUDAH</p><p className="text-emerald-400 font-black text-lg">{money(profitSplit.judah)}</p></div>
+          <div className="flex-1"><p className="text-slate-400 text-xs font-bold">GIO</p><p className="text-emerald-400 font-black text-lg">{money(profitSplit.giovanni)}</p></div>
+          <div className="flex-1"><p className="text-slate-400 text-xs font-bold">MOM</p><p className="text-emerald-400 font-black text-lg">{money(profitSplit.mom)}</p></div>
+        </div>
+      </div>
 
       <div className="rounded-3xl bg-gradient-to-br from-yellow-400 to-amber-500 p-5 mb-3">
         <p className="text-slate-800 font-semibold text-sm">Giovanni owes you</p>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../lib/store";
-import { money, taxSummary } from "../lib/math";
+import { money, personTaxSummary, kindOfLot, isMomKind, type ProfitPerson } from "../lib/math";
 import { BigButton, Field, inputCls, MoneyInput, ScreenTitle } from "../components/ui";
 import type { ExpenseCategory } from "../lib/types";
 
@@ -27,6 +27,7 @@ function Line({ label, value, bold }: { label: string; value: number; bold?: boo
 
 export default function Books() {
   const { sales, shows, purchases, expenses, lots, addExpense, deleteExpense } = useStore();
+  const [person, setPerson] = useState<ProfitPerson>("judah");
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
   const [amount, setAmount] = useState("");
@@ -42,18 +43,22 @@ export default function Books() {
     return [...set].sort((a, b) => b - a);
   }, [sales, purchases, thisYear]);
 
-  const t = useMemo(() => taxSummary(year, sales, shows, expenses, purchases), [year, sales, shows, expenses, purchases]);
+  const t = useMemo(() => personTaxSummary(person, year, sales, lots, shows, expenses, purchases), [person, year, sales, lots, shows, expenses, purchases]);
+  const scopedSales = useMemo(() => sales.filter((s) => { const k = kindOfLot(lots, s.lot_id); return person === "judah" ? k !== "giovanni" : person === "giovanni" ? k === "giovanni" : isMomKind(k); }), [sales, lots, person]);
   const yearExpenses = useMemo(() => expenses.filter((e) => e.spent_on.startsWith(String(year))), [expenses, year]);
   const inventoryAtCost = useMemo(() => Math.round(lots.reduce((s, l) => s + l.qty_on_hand * Number(l.cost_basis_unit), 0) * 100) / 100, [lots]);
   const inventoryUnits = lots.reduce((s, l) => s + l.qty_on_hand, 0);
 
   function downloadCsv() {
+    const title = person === "judah" ? "Judah TCG Books — Schedule C summary (Judah only)" : person === "giovanni" ? "Giovanni's numbers — memo only, NOT part of Judah's Schedule C" : "Mom's numbers — memo only";
     const rows: string[][] = [
-      ["Judah TCG Books — Schedule C summary", String(year)],
+      [title, String(year)],
       ["Line 1 — Gross receipts or sales", t.grossReceipts.toFixed(2)],
       ["Line 4 — Cost of goods sold", t.cogs.toFixed(2)],
       ["Line 7 — Gross profit", t.grossProfit.toFixed(2)],
       ["Line 10 — Commissions and fees (TCGplayer)", t.fees.toFixed(2)],
+      ...(person === "judah" && t.momShareTotal !== 0 ? [["Mom's profit share — her cut of her items' profit", t.momShareTotal.toFixed(2)]] : []),
+      ...(person === "mom" ? [["Judah's cut of the profit (he sold the items)", t.judahCutTotal.toFixed(2)]] : []),
       ["Other — Postage & shipping paid on sales", t.shippingPaid.toFixed(2)],
       ["Other — Show table fees", t.tableFees.toFixed(2)],
       ...Object.entries(t.expensesByCategory).map(([c, v]) => [`Expense — ${CATEGORY_LABELS[c as ExpenseCategory]?.label ?? c}`, v.toFixed(2)]),
@@ -63,7 +68,7 @@ export default function Books() {
       ["Info — Inventory on hand at cost (Line 41)", inventoryAtCost.toFixed(2)],
       [],
       ["SALES DETAIL", "date", "product", "qty", "item total", "shipping charged", "fees", "shipping paid", "cost of items", "profit"],
-      ...sales.filter((s) => s.sold_on.startsWith(String(year))).map((s) => [s.sold_on, s.product_name, String(s.qty), Number(s.item_price).toFixed(2), Number(s.shipping_charged).toFixed(2), Number(s.fees).toFixed(2), Number(s.shipping_paid).toFixed(2), Number(s.cost_basis_total).toFixed(2), Number(s.profit).toFixed(2)]),
+      ...scopedSales.filter((s) => s.sold_on.startsWith(String(year))).map((s) => [s.sold_on, s.product_name, String(s.qty), Number(s.item_price).toFixed(2), Number(s.shipping_charged).toFixed(2), Number(s.fees).toFixed(2), Number(s.shipping_paid).toFixed(2), Number(s.cost_basis_total).toFixed(2), Number(s.profit).toFixed(2)]),
       [],
       ["EXPENSE DETAIL", "date", "category", "amount", "note"],
       ...yearExpenses.map((e) => [e.spent_on, CATEGORY_LABELS[e.category]?.label ?? e.category, Number(e.amount).toFixed(2), e.note]),
@@ -71,7 +76,7 @@ export default function Books() {
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    a.download = `schedule-c-${year}.csv`;
+    a.download = person === "judah" ? `schedule-c-judah-${year}.csv` : person === "giovanni" ? `giovanni-numbers-${year}.csv` : `mom-numbers-${year}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -79,6 +84,13 @@ export default function Books() {
   return (
     <div>
       <ScreenTitle title="🧾 Books & Taxes" sub="Your whole year in Schedule C shape — open this page at tax time and copy the numbers onto the form." />
+      <Field label="Whose numbers?">
+        <select className={inputCls} value={person} onChange={(e) => setPerson(e.target.value as ProfitPerson)}>
+          <option value="judah">Judah — the Schedule C</option>
+          <option value="giovanni">Giovanni — his numbers (memo, not on Judah's Schedule C)</option>
+          <option value="mom">Mom — her numbers (memo)</option>
+        </select>
+      </Field>
       <Field label="Tax year">
         <select className={inputCls} value={year} onChange={(e) => setYear(parseInt(e.target.value))}>
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
@@ -91,6 +103,8 @@ export default function Books() {
         <Line label="Line 7 — Gross profit" value={t.grossProfit} bold />
         <p className="text-slate-400 text-sm font-bold mt-4 mb-1">Expenses</p>
         <Line label="Line 10 — Commissions & fees (TCGplayer)" value={t.fees} />
+        {person === "judah" && t.momShareTotal !== 0 && <Line label="Mom's profit share (her cut of her items' profit)" value={t.momShareTotal} />}
+        {person === "mom" && <Line label="Judah's cut of the profit (he sold them)" value={t.judahCutTotal} />}
         <Line label="Postage & shipping paid on sales" value={t.shippingPaid} />
         <Line label="Show table fees" value={t.tableFees} />
         {Object.entries(t.expensesByCategory).map(([c, v]) => (
@@ -98,17 +112,20 @@ export default function Books() {
         ))}
         <Line label="Line 28 — Total expenses" value={t.totalExpenses} bold />
         <div className="flex items-baseline justify-between pt-3">
-          <span className="text-white font-black">Line 31 — Net profit</span>
+          <span className="text-white font-black">{person === "judah" ? "Line 31 — Net profit" : "Net profit (memo)"}</span>
           <span className="text-3xl font-black text-yellow-300">{money(t.netProfit)}</span>
         </div>
         <p className="text-slate-500 text-sm mt-3">
-          Cross-check: sale profits {money(t.salesProfit)} − table fees {money(t.tableFees)} − other expenses {money(t.manualExpenses)} = {money(t.netProfit)} ✓.
-          Also for the form: product bought in {year} was {money(t.purchasesInYear)} (Line 36), and inventory on hand right now is {inventoryUnits} items worth {money(inventoryAtCost)} at cost (Line 41).
+          {person === "judah" && <>Cross-check: sale profits {money(t.salesProfit)} − Mom's profit share {money(t.momShareTotal)} − table fees {money(t.tableFees)} − other expenses {money(t.manualExpenses)} = {money(t.netProfit)} ✓. Giovanni's sales are not in any of these numbers.</>}
+          {person === "giovanni" && <>Giovanni's own items only. None of this is on Judah's Schedule C — it's the memo for Giovanni (and for the 1099 conversation).</>}
+          {person === "mom" && <>Cross-check: her items' profit {money(t.salesProfit)} − Judah's cut {money(t.judahCutTotal)} = her profit {money(t.netProfit)} ✓. Her cost comes back through the Who Owes Who ledger, not here.</>}
+          {" "}Also for the form: product bought in {year} was {money(t.purchasesInYear)} (Line 36), and inventory on hand right now is {inventoryUnits} items worth {money(inventoryAtCost)} at cost (Line 41).
         </p>
       </div>
 
       <button onClick={downloadCsv} className="w-full rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-bold mb-6">⬇️ Download this year as a file (CSV)</button>
 
+      {person === "judah" && (<>
       <h3 className="text-white font-black text-lg mb-1">Log an expense</h3>
       <p className="text-slate-400 text-sm mb-3">Sleeves, mailers, postage, ads — anything the business spent money on that isn't product. It lands on this page for taxes.</p>
       <Field label="How much?">
@@ -129,7 +146,8 @@ export default function Books() {
         Add expense
       </BigButton>
 
-      {yearExpenses.length > 0 && (
+      </>)}
+      {person === "judah" && yearExpenses.length > 0 && (
         <div className="mt-6">
           <h3 className="text-white font-black mb-2">Expenses in {year}</h3>
           <div className="grid gap-2">

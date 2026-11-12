@@ -14,7 +14,7 @@ cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
 cpSync(join(root, "src/lib/quickbuy.ts"), join(tmp, "quickbuy.ts"));
 cpSync(join(root, "src/lib/catalog.ts"), join(tmp, "catalog.ts"));
 execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "quickbuy.ts", "catalog.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
-const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping, momShippingOwed } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping, momShippingOwed, profitByPerson, personTaxSummary } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
 const { parseQuickBuyLine, allocateShipping } = createRequire(import.meta.url)(join(tmp, "out/quickbuy.js"));
 const { UPC_CATALOG, normalizeBarcode, catalogLookup } = createRequire(import.meta.url)(join(tmp, "out/catalog.js"));
 
@@ -144,6 +144,32 @@ eq("fronted: sums across orders", frontedShipping([{ lot_id: "g1", shipping_paid
 eq("fronted: mom-paid giovanni sale excluded", frontedShipping([{ lot_id: "g1", shipping_paid: 9.5, channel: "tcgplayer", ship_paid_by: "mom" }], fsLots), 0);
 eq("momship: sums mom-paid rows", momShippingOwed([{ lot_id: "g1", shipping_paid: 9.5, ship_paid_by: "mom" }, { lot_id: "m1", shipping_paid: 8.36, ship_paid_by: "mom" }, { lot_id: "m1", shipping_paid: 5.5, ship_paid_by: "judah" }]), 17.86);
 eq("momship: legacy rows count as judah", momShippingOwed([{ lot_id: "m1", shipping_paid: 5.5 }]), 0);
+
+// ——— Per-person profit (DECISIONS #58), fixtures = the real Nov 6 batch aggregates ———
+const pLots = [{ id: "L-mine", owner_kind: "mine" }, { id: "L-gio", owner_kind: "giovanni" }, { id: "L-mom", owner_kind: "mom_payback" }];
+const pSales = [
+  { lot_id: "L-mine", item_price: 1583.40, shipping_charged: 0, shipping_paid: 0, fees: 210.98, cost_basis_total: 1085.00, profit: 287.42, mom_share: 0, sold_on: "2026-11-06" },
+  { lot_id: "L-mom", item_price: 1921.75, shipping_charged: 0, shipping_paid: 0, fees: 256.71, cost_basis_total: 1341.76, profit: 323.28, mom_share: 161.65, sold_on: "2026-11-06" },
+  { lot_id: "L-gio", item_price: 1611.50, shipping_charged: 0, shipping_paid: 0, fees: 215.03, cost_basis_total: 1139.00, profit: 257.47, mom_share: 0, sold_on: "2026-11-06" },
+];
+const split = profitByPerson(pSales, pLots);
+eq("person: Judah profit (his + half of Mom's)", split.judah, 449.05);
+eq("person: Giovanni profit", split.giovanni, 257.47);
+eq("person: Mom profit (her share)", split.mom, 161.65);
+eq("person: the three tie to the batch total", Math.round((split.judah + split.giovanni + split.mom) * 100) / 100, 868.17);
+const noShows = [], noExp = [], noPur = [];
+const scJ = personTaxSummary("judah", 2026, pSales, pLots, noShows, noExp, noPur);
+eq("schedC: receipts exclude Giovanni", scJ.grossReceipts, 3505.15);
+eq("schedC: COGS excludes Giovanni", scJ.cogs, 2426.76);
+eq("schedC: fees exclude Giovanni", scJ.fees, 467.69);
+eq("schedC: Mom's share is a cost line", scJ.momShareTotal, 161.65);
+eq("schedC: net = Judah's profit", scJ.netProfit, 449.05);
+const scG = personTaxSummary("giovanni", 2026, pSales, pLots, noShows, noExp, noPur);
+eq("gio memo: receipts are his only", scG.grossReceipts, 1611.50);
+eq("gio memo: net = his profit", scG.netProfit, 257.47);
+const scM = personTaxSummary("mom", 2026, pSales, pLots, noShows, noExp, noPur);
+eq("mom memo: receipts are her items'", scM.grossReceipts, 1921.75);
+eq("mom memo: net = her profit share", scM.netProfit, 161.65);
 
 console.log(fails === 0 ? "ALL MATH TESTS PASSED" : `${fails} FAILURES`);
 process.exit(fails ? 1 : 0);

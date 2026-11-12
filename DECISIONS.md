@@ -679,3 +679,23 @@ The postage bridge stands as: Pirate Ship → Shipments → Export
 (recipient + tracking + cost per label), paired to orders by the
 reference/name it carries. The eleven-eleven labels ($162.22) pair
 in that pass; profits dip and Mom's owed rises by her postage then.
+#58 — Profit is per-person now (Jen, 2026-11-12): "we need a better
+formula for figuring out Judah's profit vs Gio's profit vs Mom's
+profit" + "schedule c — this should only be HIS profit not Gio's" +
+"either 3 buttons visible or a dropdown — I think in schedule c a
+dropdown and it should be exportable." Formula (math.ts
+profitForPerson / profitByPerson / personTaxSummary): per sale,
+profit lands on the stock's owner — Giovanni's all his, Judah's all
+his, Mom's split (her recorded mom_share is her profit; the rest of
+that sale's profit is Judah's — he sold it). Loose expenses and show
+table fees land on Judah only. Profit screen: three buttons (Judah ·
+Gio · Mom) with each person's all-time profit on the button; cards
+and the sales list follow the tapped person. Who Owes Who opens
+with the three-way profit strip. Books & Taxes: a "Whose numbers?"
+dropdown — Judah's IS the Schedule C (his + Mom's stock, Mom's
+profit share as a cost line, Giovanni excluded from every line
+including purchases); Giovanni's and Mom's are labeled memos in the
+same shape. The CSV export downloads the selected person's summary
++ their sales detail. Proven against the real Nov batch: Judah
+$449.05 / Gio $257.47 / Mom $161.65, tying to $868.17; Schedule C
+receipts $3,505.15, COGS $2,426.76, fees $467.69, net $449.05.

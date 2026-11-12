@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../lib/store";
-import { money } from "../lib/math";
+import { money, profitForPerson, kindOfLot, isMomKind, type ProfitPerson } from "../lib/math";
 import { ScreenTitle } from "../components/ui";
 
 function startOfWeek(): Date { const d = new Date(); const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); d.setHours(0, 0, 0, 0); return d; }
@@ -9,18 +9,25 @@ function startOfMonth(): Date { const d = new Date(); return new Date(d.getFullY
 export default function Profit({ go }: { go: (v: import("../App").View) => void }) {
   const { sales, lots, products, deleteSale } = useStore();
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const { week, month, all, weekCount } = useMemo(() => {
+  const [person, setPerson] = useState<ProfitPerson>("judah");
+  const belongs = (kind: string) => person === "judah" ? kind !== "giovanni" : person === "giovanni" ? kind === "giovanni" : isMomKind(kind);
+  const { week, month, all, weekCount, split } = useMemo(() => {
     const w = startOfWeek().getTime(), m = startOfMonth().getTime();
     let week = 0, month = 0, all = 0, weekCount = 0;
+    const split: Record<ProfitPerson, number> = { judah: 0, giovanni: 0, mom: 0 };
     for (const s of sales) {
+      const kind = kindOfLot(lots, s.lot_id);
+      for (const p of ["judah", "giovanni", "mom"] as ProfitPerson[]) split[p] += profitForPerson(p, s, kind);
+      const mine = profitForPerson(person, s, kind);
       const t = new Date(s.sold_on + "T12:00:00").getTime();
-      all += Number(s.profit);
-      if (t >= m) month += Number(s.profit);
-      if (t >= w) { week += Number(s.profit); weekCount++; }
+      all += mine;
+      if (t >= m) month += mine;
+      if (t >= w) { week += mine; if (belongs(kind)) weekCount++; }
     }
     const r = (n: number) => Math.round(n * 100) / 100;
-    return { week: r(week), month: r(month), all: r(all), weekCount };
-  }, [sales]);
+    return { week: r(week), month: r(month), all: r(all), weekCount, split: { judah: r(split.judah), giovanni: r(split.giovanni), mom: r(split.mom) } };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sales, lots, person]);
 
   const stockValue = useMemo(() => {
     let v = 0;
@@ -34,7 +41,14 @@ export default function Profit({ go }: { go: (v: import("../App").View) => void 
 
   return (
     <div>
-      <ScreenTitle title="📈 Profit" sub="Real math from your buys and sales." />
+      <ScreenTitle title="📈 Profit" sub="Whose profit? Tap a name — the numbers below are that person's." />
+      <div className="flex gap-2 mb-4">
+        {( [["judah", "Judah"], ["giovanni", "Gio"], ["mom", "Mom"]] as [ProfitPerson, string][]).map(([p, label]) => (
+          <button key={p} onClick={() => setPerson(p)} className={`flex-1 rounded-2xl border-2 py-3 font-black ${person === p ? "bg-emerald-500 border-emerald-400 text-slate-900" : "bg-slate-800 border-slate-700 text-slate-200"}`}>
+            {label}<span className="block text-sm font-bold">{money(split[p])}</span>
+          </button>
+        ))}
+      </div>
       <div className="grid gap-3 mb-4">
         <ProfitCard label="Profit this week" value={week} sub={`${weekCount} sale${weekCount === 1 ? "" : "s"} this week`} />
         <ProfitCard label="Profit this month" value={month} />
@@ -51,17 +65,17 @@ export default function Profit({ go }: { go: (v: import("../App").View) => void 
         </div>
       </div>
 
-      <h2 className="text-white font-bold text-lg mb-2">Recent sales</h2>
-      {sales.length === 0 && <p className="text-slate-400">No sales yet. TCGplayer sales show up when you upload the orders file; show sales show up from Show Mode.</p>}
+      <h2 className="text-white font-bold text-lg mb-2">Recent sales — {person === "judah" ? "Judah" : person === "giovanni" ? "Gio" : "Mom"}</h2>
+      {sales.length === 0 && <p className="text-slate-400">No sales yet. TCGplayer sales show up when you upload the packing slips; show sales show up from Show Mode.</p>}
       <div className="grid gap-2">
-        {sales.slice(0, 10).map((s) => (
+        {sales.filter((s) => belongs(kindOfLot(lots, s.lot_id))).slice(0, 10).map((s) => (
           <div key={s.id} className="rounded-2xl bg-slate-800 border border-slate-700 px-4 py-3">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-white font-semibold">{s.product_name} × {s.qty}</p>
                 <p className="text-slate-400 text-sm">{s.sold_on} · {s.channel === "show_cash" ? "🎪 show · cash" : s.channel === "show_venmo" ? "🎪 show · Venmo" : `your share ${money(Number(s.judah_share))}`}{Number(s.mom_share ?? 0) > 0 ? ` · Mom's profit cut ${money(Number(s.mom_share))}` : ""}</p>
               </div>
-              <span className={`font-black ${Number(s.profit) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{money(Number(s.profit))}</span>
+              <span className={`font-black ${profitForPerson(person, s, kindOfLot(lots, s.lot_id)) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{money(profitForPerson(person, s, kindOfLot(lots, s.lot_id)))}</span>
             </div>
             <button
               onClick={() => { if (confirmId === s.id) { void deleteSale(s); setConfirmId(null); } else setConfirmId(s.id); }}

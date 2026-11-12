@@ -82,7 +82,7 @@ export function showCashExpected(cashFloat: number, cashSalesTotal: number, cash
   return round2(cashFloat + cashSalesTotal - cashBuysTotal);
 }
 
-export interface TaxSale { item_price: number; shipping_charged: number; shipping_paid: number; fees: number; cost_basis_total: number; profit: number; sold_on: string }
+export interface TaxSale { item_price: number; shipping_charged: number; shipping_paid: number; fees: number; cost_basis_total: number; profit: number; sold_on: string; lot_id?: string | null; mom_share?: number | null }
 export interface TaxExpense { amount: number; spent_on: string; category: string }
 export interface TaxSummary {
   grossReceipts: number;   // Schedule C line 1: item totals + shipping charged
@@ -140,6 +140,76 @@ export function taxSummary(
 // collected, and the Mom ledger is settled from that.
 export function momProfitShare(profit: number): number {
   return round2(profit * 0.5);
+}
+
+// ——— Per-person profit (DECISIONS #58, Jen 2026-11-12) ———
+// "We need a better formula for figuring out Judah's profit vs Gio's
+// profit vs Mom's profit." Profit is figured sale by sale (payout after
+// fees and postage, minus the stock's cost), then it lands on whoever's
+// stock it was: Giovanni's stock → Giovanni's profit, all of it; Judah's
+// stock → Judah's; Mom's stock → split — her recorded mom_share is her
+// profit, the rest of that sale's profit is Judah's (he sold it). And
+// the Schedule C is Judah's alone: Giovanni's numbers never touch it.
+export type ProfitPerson = "judah" | "giovanni" | "mom";
+export const isMomKind = (kind: string) => kind === "mom_payback" || kind === "mom_split";
+export function kindOfLot(lots: LotKind[], lotId: string | null | undefined): string {
+  if (!lotId) return "mine"; // lot-less rows (e.g. show sales) are Judah's business
+  return lots.find((l) => l.id === lotId)?.owner_kind ?? "mine";
+}
+export function profitForPerson(person: ProfitPerson, sale: { profit: number; mom_share?: number | null }, kind: string): number {
+  const profit = Number(sale.profit);
+  if (kind === "giovanni") return person === "giovanni" ? profit : 0;
+  if (isMomKind(kind)) {
+    const ms = Number(sale.mom_share ?? 0);
+    if (person === "mom") return ms;
+    if (person === "judah") return round2(profit - ms);
+    return 0;
+  }
+  return person === "judah" ? profit : 0;
+}
+export function profitByPerson(sales: { lot_id?: string | null; profit: number; mom_share?: number | null }[], lots: LotKind[]): Record<ProfitPerson, number> {
+  const out: Record<ProfitPerson, number> = { judah: 0, giovanni: 0, mom: 0 };
+  for (const s of sales) {
+    const kind = kindOfLot(lots, s.lot_id);
+    out.judah = round2(out.judah + profitForPerson("judah", s, kind));
+    out.giovanni = round2(out.giovanni + profitForPerson("giovanni", s, kind));
+    out.mom = round2(out.mom + profitForPerson("mom", s, kind));
+  }
+  return out;
+}
+
+export interface PersonTaxSummary extends TaxSummary { person: ProfitPerson; momShareTotal: number; judahCutTotal: number }
+export interface PersonPurchase { total_cost: number; purchased_on: string; owner_kind: string }
+
+/** One person's tax-shaped year. Judah's IS the Schedule C: his stock +
+ *  Mom's stock (she's his supplier — her profit share is a cost line),
+ *  all shows and loose expenses, none of Giovanni's anything. Giovanni's
+ *  and Mom's are memos in the same shape, their own numbers only. */
+export function personTaxSummary(
+  person: ProfitPerson, year: number,
+  sales: TaxSale[], lots: LotKind[],
+  shows: { table_fee: number; show_date: string }[],
+  expenses: TaxExpense[],
+  purchases: PersonPurchase[],
+): PersonTaxSummary {
+  const kind = (s: TaxSale) => kindOfLot(lots, s.lot_id);
+  const scopedSales = sales.filter((s) => person === "judah" ? kind(s) !== "giovanni" : person === "giovanni" ? kind(s) === "giovanni" : isMomKind(kind(s)));
+  const scopedPurchases = purchases.filter((p) => person === "judah" ? p.owner_kind !== "giovanni" : person === "giovanni" ? p.owner_kind === "giovanni" : isMomKind(p.owner_kind));
+  const base = taxSummary(year, scopedSales, person === "judah" ? shows : [], person === "judah" ? expenses : [], scopedPurchases);
+  const inYear = (d: string) => d.startsWith(String(year));
+  const momSales = sales.filter((s) => inYear(s.sold_on) && isMomKind(kind(s)));
+  const momShareTotal = round2(momSales.reduce((sum, s) => sum + Number(s.mom_share ?? 0), 0));
+  const judahCutTotal = round2(momSales.reduce((sum, s) => sum + round2(Number(s.profit) - Number(s.mom_share ?? 0)), 0));
+  const out: PersonTaxSummary = { ...base, person, momShareTotal, judahCutTotal };
+  if (person === "judah" && momShareTotal !== 0) {
+    out.totalExpenses = round2(base.totalExpenses + momShareTotal);
+    out.netProfit = round2(base.netProfit - momShareTotal);
+  }
+  if (person === "mom") {
+    out.totalExpenses = round2(base.totalExpenses + judahCutTotal);
+    out.netProfit = round2(base.netProfit - judahCutTotal);
+  }
+  return out;
 }
 
 export function money(n: number): string {
