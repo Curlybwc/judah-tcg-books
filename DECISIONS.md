@@ -755,3 +755,22 @@ the seller-portal Orders URL, 2026-11-12): Sales step 1's packing-
 slip instructions now carry an "Open TCGplayer — Orders" button
 beside the Pirate Ship Shipments-report link on the shipping step.
 Both source pages are one tap from the step that uses them.
+#64 — Real TCGplayer fees replace the formula (Judah's screenshot of
+the 11/23/2026 payment list, sent by Jen 2026-11-12). Every actual
+fee ran $0–$1.02 ABOVE the app's formula, and identical totals
+carried different fees. The pattern solves exactly: TCGplayer's
+2.5% processing fee also applies to the buyer sales tax it
+collects. Proof: the New Hampshire order (no sales tax) matched
+the formula to the penny ($53.30); the Michigan order's excess is
+exactly 2.5% of 6% tax on $400 ($0.60). The books now carry the
+actual per-order fees (A7CA75's $34.46 split by subtotal:
+$22.97/$11.49). Effects: fees $682.72 -> $692.26; profit Judah
+$372.11 / Gio $215.31 / Mom $124.57 ($711.99 total); Giovanni owes
+Judah $2,923.44; Judah owes Mom $2,280.75 (+ the $1,000 loan =
+$3,280.75; net shortfall $357.31). The 11/23 payout totals
+$4,859.18; $434.79 of it is net from the three UNRECORDED orders
+(Heath UPC $332.78, Winters ETB $72.88, Iavagnilio single $29.13)
+— whose stock those were is still unanswered; if Judah's or Mom's,
+Giovanni owes that too. Open app question for Jen: teach saleMath
+the tax piece (needs a buyer-tax input per sale) or keep the
+payments-list correction as the routine.
