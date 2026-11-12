@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { priceProvider, type PriceResult } from "./priceProvider";
-import { frontedShipping, momShippingOwed } from "./math";
+import { frontedShipping, momShippingOwed, profitByPerson } from "./math";
 import { SAMPLE_OWNER_ID } from "./config";
 import type { BookMember, BookSet, Expense, ExpenseCategory, GiovanniPayment, Loan, LoanInput, LoanPayment, Lot, MomPayment, Product, Purchase, Sale, Show } from "./types";
 import { blobToDataUrl, compressImageFile } from "./photos";
@@ -803,7 +803,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // All-time profit across every sale (TCGplayer + shows) — the Home hero
   // number since Jen's 2026-11-07 ruling. Same sum as Profit's "all time".
-  const totalProfit = useMemo(() => Math.round(data.sales.reduce((s, x) => s + Number(x.profit), 0) * 100) / 100, [data.sales]);
+  // The Home big button is JUDAH's profit only (Jen, DECISIONS #59) — Gio's and Mom's live on the Profit screen, not blended in here.
+  const totalProfit = useMemo(() => profitByPerson(data.sales, data.lots).judah, [data.sales, data.lots]);
 
   const value: Store = {
     ready, remote, notice, userEmail, userId, sets, members, currentSetId, switchSet, createSet, joinSet, resetJoinCode, removeMember, leaveSet, ownerId,

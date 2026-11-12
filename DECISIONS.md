@@ -699,3 +699,7 @@ same shape. The CSV export downloads the selected person's summary
 + their sales detail. Proven against the real Nov batch: Judah
 $449.05 / Gio $257.47 / Mom $161.65, tying to $868.17; Schedule C
 receipts $3,505.15, COGS $2,426.76, fees $467.69, net $449.05.
+#59 — The Home big button shows JUDAH's profit only (Jen, 2026-11-12:
+"I want just Judah's profit on the big button on home"). store's
+totalProfit now = profitByPerson(...).judah; the hero reads "Judah's
+profit — all time." Today that's $449.05, not the blended $868.17.

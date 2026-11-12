@@ -28,9 +28,9 @@ export default function Home({ go }: { go: (v: View) => void }) {
   return (
     <div>
       <button onClick={() => go("profit")} className="w-full text-left rounded-3xl bg-gradient-to-br from-yellow-400 to-amber-500 p-5 mb-5 shadow">
-        <p className="text-slate-800 font-semibold text-sm">Your profit — all time</p>
+        <p className="text-slate-800 font-semibold text-sm">Judah's profit — all time</p>
         <p className="text-5xl font-black text-slate-900 mt-1">{ready ? money(totalProfit) : "…"}</p>
-        <p className="text-slate-700 text-sm mt-1">Everything you've made after fees and costs. Tap to open Profit — week and month are there.</p>
+        <p className="text-slate-700 text-sm mt-1">Just yours, after fees and costs. Tap to open Profit — Gio's and Mom's are in there too.</p>
       </button>
 
 
