@@ -632,3 +632,25 @@ ONCE — the browser keeps the session after — or it doesn't start.
 The app paths (order-list import, Pirate Ship chips, Ask Muse
 prices) work without any TCGplayer sign-in and are the standing way
 in; pre-app and unidentified orders stay unmatched by design.
+#54 — The file is the PACKING SLIPS (Jen, 2026-11-11): "in the app,
+rather than saying 'export the orders,' we need to be super clear:
+'export the packing slip.' And upload it into the app." Sales step 1
+now leads with Print packing slips → save the PDF → upload it here;
+the orders CSV is demoted to a fallback link. The app reads the PDF
+(unpdf) and parses it (src/lib/slips.ts) into named line items —
+proven against Jen's two real slip PDFs: 31 unique orders, every
+item summing to its order total, grand total $6,993.06 tying to the
+order list, Day 7 / Night 6. Slips don't carry shipping charged, so
+the match card makes that amount editable per sale.
+#55 — The app's inventory is the LAST WEEK's pool (Jen, 2026-11-11):
+"All of these would be sales that happened in the last week. Anything
+before the last week, I never entered the inventory into the app."
+So the Sep 16–Oct 31 sales (Celebration ETBs, the tins, bundles,
+Destined Rivals, singles) were never app inventory and are NOT
+recorded — pre-app history, out by the same rule as the singles.
+The recordable set from the backlog is the Nov 6–7 batch: 13 UPCs
+(Day 7, Night 6) and 6 Delta Reign ETBs. Still open when she rules:
+whose UPCs/ETBs sold (snapshot pool splits UPC 4 mine / 4 Giovanni /
+4 Mom = 12 against 13 sold; ETB 1 Giovanni / 4 Mom = 5 against 6
+sold — one unexplained extra in each) and the Greninja name (moot
+for recording now; its sales are pre-week).

@@ -3,6 +3,7 @@ import Papa from "papaparse";
 import { useStore } from "../lib/store";
 import { money, saleMath } from "../lib/math";
 import { extractPsRows, isLedgerFile, extractLedgerAmounts, orderKey, nameKey, psTotalsByOrder, psTotalsByName } from "../lib/pirateship";
+import { parseSlipsText } from "../lib/slips";
 import { BigButton, Chip, inputCls, MathRow, ScreenTitle, StepRail, ownerLabel } from "../components/ui";
 import type { View } from "../App";
 import type { Lot } from "../lib/types";
@@ -51,6 +52,7 @@ export default function SellFlow({ go }: { go: (v: View) => void }) {
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ collected: number; owed: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const slipsRef = useRef<HTMLInputElement>(null);
   const psRef = useRef<HTMLInputElement>(null);
   const [psNote, setPsNote] = useState<{ tone: "green" | "amber" | "red"; text: string } | null>(null);
   const [psFilled, setPsFilled] = useState<Set<string>>(new Set());
@@ -150,6 +152,32 @@ The books live in Supabase project zjsxplnyphejklsdhqxz, set owner_id = '${curre
   const stockLots = useMemo(() => lots.filter((l) => l.qty_on_hand > 0), [lots]);
   const lotById = useMemo(() => new Map(lots.map((l) => [l.id, l])), [lots]);
   const productName = (lot: Lot) => products.find((p) => p.id === lot.product_id)?.name ?? "Product";
+
+  async function handleSlipsFile(file: File) {
+    setParseError(null);
+    try {
+      const { extractText, getDocumentProxy } = await import("unpdf");
+      const pdf = await getDocumentProxy(new Uint8Array(await file.arrayBuffer()));
+      const { text } = await extractText(pdf, { mergePages: true });
+      const slipOrders = parseSlipsText(Array.isArray(text) ? text.join("\n") : text);
+      if (!slipOrders.length) { setParseError("No orders found in that PDF. Make sure it's the packing slips file from TCGplayer (Orders → print packing slips)."); return; }
+      const parsed: Row[] = [];
+      let k = 0;
+      for (const o of slipOrders) {
+        for (const item of o.items) {
+          let best: Lot | null = null; let bestScore = 0;
+          for (const lot of stockLots) { const sc = score(item.name, productName(lot)); if (sc > bestScore) { bestScore = sc; best = lot; } }
+          parsed.push({ key: k++, orderId: o.orderId, productName: item.name, qty: item.qty, unitPrice: item.unitPrice, shippingCharged: 0, buyerName: o.buyerName, soldOn: o.soldOn, lotId: best && bestScore >= 40 ? best.id : "" });
+        }
+      }
+      setFileNote(`Packing slips: ${slipOrders.length} orders, and every item is named — no guessing what was in them. One thing slips don't show: shipping charged to the buyer. Recent orders charged $0; if any of these charged shipping, tap the amount on its card and fix it.`);
+      setRows(parsed);
+      const sp: Record<string, string> = {};
+      parsed.forEach((r) => { if (!(r.orderId in sp)) sp[r.orderId] = ""; });
+      setShipPaid(sp);
+      setStep(1);
+    } catch { setParseError("Couldn't read that PDF. Try downloading the packing slips again from TCGplayer."); }
+  }
 
   function handleFile(file: File) {
     setParseError(null);
@@ -303,13 +331,15 @@ The books live in Supabase project zjsxplnyphejklsdhqxz, set owner_id = '${curre
       {step === 0 && (
         <div>
           <div className="rounded-2xl bg-slate-800 border border-slate-700 p-4 mb-4 text-slate-300 text-sm leading-relaxed">
-            <p className="font-bold text-white text-base mb-1">How to get the file</p>
+            <p className="font-bold text-white text-base mb-1">Get the PACKING SLIPS — not the orders export</p>
             <p>1. Open TCGplayer → Seller Portal → Orders.</p>
-            <p>2. Tap Export — you get a file named TCGplayer_OrderList…</p>
-            <p>3. Come back here and upload it. It lists each order's total; you'll say which product each one was.</p>
+            <p>2. Tick the orders you shipped, then <b className="text-white">Print packing slips</b> and save the PDF.</p>
+            <p>3. Upload that PDF here. The slips name every item in every order — the plain orders export only gives totals, and totals can't say what was in the box.</p>
           </div>
+          <input ref={slipsRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleSlipsFile(f); e.target.value = ""; }} />
+          <BigButton onClick={() => slipsRef.current?.click()}>🧾 Upload the packing slips</BigButton>
           <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-          <BigButton onClick={() => fileRef.current?.click()}>📤 Upload the orders file</BigButton>
+          <button onClick={() => fileRef.current?.click()} className="w-full mt-3 text-slate-400 underline text-sm">Have only the orders CSV (totals)? Use it instead — you'll pick each product yourself.</button>
           <button onClick={() => { setAskSalesOpen(!askSalesOpen); setAskSalesCopied(false); }} className="w-full mt-3 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-bold">🤖 Ask Muse to read the orders</button>
           {askSalesOpen && (
             <div className="rounded-2xl bg-slate-800 border border-sky-700 p-4 mt-3">
@@ -336,6 +366,7 @@ The books live in Supabase project zjsxplnyphejklsdhqxz, set owner_id = '${curre
                 <div key={r.key} className="rounded-2xl bg-slate-800 border border-slate-700 p-4">
                   <p className="text-white font-bold">{r.productName || (lot ? productName(lot) : "Which product was this?")}</p>
                   <p className="text-slate-400 text-sm">Order {r.orderId}{r.buyerName ? ` · ${r.buyerName}` : ""} · {r.qty} × {money(r.unitPrice)} · shipping charged {money(r.shippingCharged)}{r.orderTotal != null ? ` · TCGplayer product total ${money(r.orderTotal)}` : ""}</p>
+                  <p className="text-slate-500 text-xs mt-1">Shipping charged wrong? <input className="w-20 rounded bg-slate-900 border border-slate-700 text-slate-200 px-1.5 py-0.5 text-xs" inputMode="decimal" value={r.shippingCharged || ""} placeholder="0.00" onChange={(e) => { const next = [...rows]; next[i] = { ...r, shippingCharged: parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 0 }; setRows(next); }} /></p>
                   {r.orderTotal != null && (
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
                       <span className="text-slate-400 text-sm">How many?</span>
