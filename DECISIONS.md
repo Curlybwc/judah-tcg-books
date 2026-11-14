@@ -843,3 +843,15 @@ with "Scan the next one" (fresh form, camera open) and "Add another
 — type it"; owner and paid-via carry over between items since a
 batch usually shares both. Before this, saving dumped you at Home
 with no way back into the scanner but the full trip around.
+#71 — Automatic market price on new inventory (Jen, 2026-11-13):
+saving a buy in Add Inventory now looks the price up on its own when
+the product has none on file, and the Saved screen reports it
+("Market price: $X each ✓"). Data source, stated plainly to Jen:
+there is no official TCGplayer API — the prices ARE TCGplayer's
+market prices, served through tcgapi.dev on her key (the same pipe
+that priced Greninja/Sylveon/Delta today). Honesty rules unchanged:
+an ambiguous or sample result saves nothing and the screen says the
+price was left blank. Best-effort only — a failed lookup never
+blocks entry, and a product that already has a price is not
+re-looked-up (Update prices covers refreshes; the free tier is
+100 lookups/day).

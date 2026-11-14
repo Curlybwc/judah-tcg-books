@@ -12,7 +12,7 @@ const TAX_RATE_KEY = "jtb-tax-rate";
 const STEPS = ["What is it?", "How many & price", "Tax & shipping", "Whose is it?", "How did you pay?", "Check the math", "Done"];
 
 export default function BuyFlow({ go }: { go: (v: View) => void }) {
-  const { addPurchase, products, purchases, uploadProductPhoto } = useStore();
+  const { addPurchase, products, purchases, uploadProductPhoto, refreshMarketPrice } = useStore();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [barcode, setBarcode] = useState("");
@@ -25,6 +25,8 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
   const [paidVia, setPaidVia] = useState<"USAA" | "Cash" | "Other">("USAA");
   const [saving, setSaving] = useState(false);
   const [savedBasis, setSavedBasis] = useState<number | null>(null);
+  const [savedMarket, setSavedMarket] = useState<number | null>(null);
+  const [priceNote, setPriceNote] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -87,6 +89,20 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
     setSavedBasis(p.cost_basis_unit);
     setSaving(false);
     setStep(6);
+    // Auto price check (DECISIONS #71, Jen 2026-11-13): a product with
+    // no market price on file gets looked up on its own right after
+    // the save — TCGplayer market price via the app's price service.
+    // Best-effort: never blocks entry, never saves an unsure match.
+    setSavedMarket(null); setPriceNote(null);
+    if (p.product_id) {
+      const prod = products.find((x) => x.id === p.product_id);
+      if (!prod || prod.market_price == null) {
+        void refreshMarketPrice(p.product_id, name.trim(), true).then((r) => {
+          if (r && !r.choices && !r.isSample && r.price > 0) setSavedMarket(r.price);
+          else setPriceNote("No sure market match — price left blank for now.");
+        }).catch(() => setPriceNote("Price check didn't go through — price left blank for now."));
+      }
+    }
   }
 
   // Rapid entry (DECISIONS #70, Jen 2026-11-13): after a save, one tap
@@ -94,7 +110,7 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
   // Owner and paid-via stay set: a batch usually shares both.
   function resetForNext(openScanner: boolean) {
     setName(""); setBarcode(""); setQty("1"); setUnitPrice(""); setShippingIn("");
-    setPhotoFile(null); setSavedBasis(null); filledFor.current = "";
+    setPhotoFile(null); setSavedBasis(null); setSavedMarket(null); setPriceNote(null); filledFor.current = "";
     setStep(0); setScanning(openScanner);
   }
 
@@ -231,6 +247,8 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
           <p className="text-6xl mb-3">✅</p>
           <p className="text-white text-xl font-bold">Saved!</p>
           <p className="text-slate-300 mt-2">{q} × {name} is now in your for-sale stock at {savedBasis !== null ? money(savedBasis) : ""} cost each.</p>
+          {savedMarket !== null && <p className="text-emerald-300 font-bold mt-2">Market price: {money(savedMarket)} each ✓</p>}
+          {savedMarket === null && priceNote && <p className="text-slate-400 text-sm mt-2">{priceNote}</p>}
           <div className="grid gap-3 mt-6">
             <BigButton color="green" onClick={() => resetForNext(true)}>📷 Scan the next one</BigButton>
             <BigButton onClick={() => resetForNext(false)}>＋ Add another — type it</BigButton>
