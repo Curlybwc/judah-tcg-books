@@ -2,13 +2,13 @@ import { useMemo, useState } from "react";
 import { useStore } from "../lib/store";
 import { money, purchaseMath, quickSaleMath } from "../lib/math";
 import { priceProvider, type PriceResult } from "../lib/priceProvider";
-import { BigButton, Chip, Field, inputCls, MoneyInput, ScreenTitle, ownerLabel } from "../components/ui";
+import { BigButton, Field, inputCls, MoneyInput, ScreenTitle, ownerLabel } from "../components/ui";
 import type { View } from "../App";
 import type { Lot } from "../lib/types";
 
 // ---------------- BUY AT SHOW: one screen, ten seconds ----------------
 export function ShowBuy({ go }: { go: (v: View) => void }) {
-  const { activeShow, addPurchase, products } = useStore();
+  const { activeShow, addPurchase, products, requestPrices, priceRequests } = useStore();
   const [name, setName] = useState("");
   const [qty, setQty] = useState(1);
   const [unitPrice, setUnitPrice] = useState("");
@@ -19,6 +19,8 @@ export function ShowBuy({ go }: { go: (v: View) => void }) {
   const [looking, setLooking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<{ basis: number; total: number } | null>(null);
+  const [savedPid, setSavedPid] = useState<string | null>(null);
+  const [doorSent, setDoorSent] = useState(false);
 
   const up = parseFloat(unitPrice) || 0;
   const math = useMemo(() => purchaseMath(qty, up, 0, 0), [qty, up]);
@@ -35,8 +37,13 @@ export function ShowBuy({ go }: { go: (v: View) => void }) {
         <p className="text-6xl mb-3">✅</p>
         <p className="text-white text-xl font-bold">Bought!</p>
         <p className="text-slate-300 mt-2">{qty} × {name} at {money(saved.basis)} cost each ({money(saved.total)} total) — in your stock, tagged to {activeShow.name}.</p>
+        {savedPid && products.find((x) => x.id === savedPid)?.market_price_source !== "tcgplayer" && (
+          doorSent || priceRequests.some((r) => (r.status === "pending" || r.status === "working") && r.items.some((i) => i.product_id === savedPid))
+            ? <p className="text-sky-300 font-semibold mt-4">Sent to Maven — the TCGplayer price lands in ~15 min ✓</p>
+            : <div className="mt-5"><BigButton color="slate" onClick={() => void sendDoor()}>💲 Get the TCGplayer price — Maven, ~15 min</BigButton></div>
+        )}
         <div className="grid gap-3 mt-6">
-          <BigButton onClick={() => { setSaved(null); setName(""); setUnitPrice(""); setQty(1); setMarket(null); }}>Buy another</BigButton>
+          <BigButton onClick={() => { setSaved(null); setSavedPid(null); setDoorSent(false); setName(""); setUnitPrice(""); setQty(1); setMarket(null); }}>Buy another</BigButton>
           <BigButton color="slate" onClick={() => go("show")}>Back to the show</BigButton>
         </div>
       </div>
@@ -49,10 +56,18 @@ export function ShowBuy({ go }: { go: (v: View) => void }) {
     setMarket(await priceProvider.lookup(name.trim()));
     setLooking(false);
   }
+  // The hybrid (DECISIONS #74): instant prices come from the price
+  // service; the TCGplayer price comes through the door (~15 min).
+  async function sendDoor() {
+    if (!savedPid) return;
+    if (await requestPrices([{ product_id: savedPid, name: name.trim() }])) setDoorSent(true);
+  }
   async function save() {
     setSaving(true);
     const p = await addPurchase({ name: name.trim(), qty, unitPrice: up, taxRate: 0, shippingIn: 0, ownerKind, judahPct: splitPct, paidVia, showId: activeShow!.id });
     setSaved({ basis: p.cost_basis_unit, total: p.total_cost });
+    setSavedPid(p.product_id ?? null);
+    setDoorSent(false);
     setSaving(false);
   }
 
@@ -63,16 +78,38 @@ export function ShowBuy({ go }: { go: (v: View) => void }) {
         <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Product name" autoFocus />
       </Field>
       {suggestions.map((p) => (
-        <button key={p.id} onClick={() => setName(p.name)} className="block w-full text-left rounded-xl bg-slate-800 border border-slate-700 px-4 py-2.5 mb-2 text-white text-sm">{p.name}</button>
+        <button key={p.id} onClick={() => { setName(p.name); if (p.market_price != null) setMarket({ price: Number(p.market_price), provider: p.market_price_source === "tcgplayer" ? "TCGplayer — via Maven" : "On file", isSample: false, source: p.market_price_source ?? undefined, matchedName: p.name }); }} className="block w-full text-left rounded-xl bg-slate-800 border border-slate-700 px-4 py-2.5 mb-2 text-white text-sm">{p.name}</button>
       ))}
 
       <button onClick={lookup} disabled={looking || name.trim().length < 2} className="w-full rounded-2xl bg-slate-700 text-white py-3 font-semibold mb-3 disabled:opacity-40">
         {looking ? "Looking…" : "🔎 Check the market price first"}
       </button>
-      {market && (
+      {market && market.isSample && (
         <div className="rounded-2xl bg-slate-800 border border-slate-700 p-4 mb-4">
-          <p className="text-slate-300 text-sm">Market price {market.isSample && <Chip tone="amber">SAMPLE</Chip>}</p>
+          <p className="text-white font-bold">No real price found for that name.</p>
+          <p className="text-slate-400 text-sm mt-1">Buy on your judgment — once it's saved, you can send it to Maven for the TCGplayer price.</p>
+        </div>
+      )}
+      {market && !market.isSample && market.choices && (
+        <div className="rounded-2xl bg-slate-800 border border-slate-700 p-4 mb-4">
+          <p className="text-white font-bold mb-2">Which one is it?</p>
+          <div className="grid gap-2">
+            {market.choices.map((c, i) => (
+              <button key={i} onClick={() => setMarket(c)} className="flex items-center justify-between gap-3 rounded-xl bg-slate-700 px-3 py-2.5 text-left">
+                <span className="text-white font-semibold text-sm">{c.matchedName}</span>
+                <span className="text-white font-black">{money(c.price)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {market && !market.isSample && !market.choices && (
+        <div className="rounded-2xl bg-slate-800 border border-slate-700 p-4 mb-4">
+          <p className="text-slate-300 text-sm">Market price</p>
           <p className="text-3xl font-black text-white">{money(market.price)}</p>
+          {market.source === "tcgplayer"
+            ? <p className="text-emerald-400 text-sm font-semibold mt-1">TCGplayer ✓</p>
+            : <p className="text-slate-500 text-sm mt-1">Instant price — TCGplayer's may differ</p>}
           <p className="text-slate-400 text-sm mt-2 mb-1.5">Tap an offer price (your buylist %):</p>
           <div className="flex gap-2">
             {[50, 60, 70, 80].map((pct) => (

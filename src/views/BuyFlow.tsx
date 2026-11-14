@@ -12,7 +12,7 @@ const TAX_RATE_KEY = "jtb-tax-rate";
 const STEPS = ["What is it?", "How many & price", "Tax & shipping", "Whose is it?", "How did you pay?", "Check the math", "Done"];
 
 export default function BuyFlow({ go }: { go: (v: View) => void }) {
-  const { addPurchase, products, purchases, uploadProductPhoto, refreshMarketPrice } = useStore();
+  const { addPurchase, products, purchases, uploadProductPhoto, refreshMarketPrice, requestPrices, priceRequests } = useStore();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [barcode, setBarcode] = useState("");
@@ -26,6 +26,8 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
   const [saving, setSaving] = useState(false);
   const [savedBasis, setSavedBasis] = useState<number | null>(null);
   const [savedMarket, setSavedMarket] = useState<number | null>(null);
+  const [savedProductId, setSavedProductId] = useState<string | null>(null);
+  const [doorSent, setDoorSent] = useState(false);
   const [priceNote, setPriceNote] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -87,6 +89,8 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
     const p = await addPurchase({ name: name.trim(), barcode: barcode ? normalizeBarcode(barcode) : undefined, qty: q, unitPrice: up, taxRate: rate, shippingIn: sh, ownerKind, judahPct: splitPct, paidVia });
     if (photoFile && p.product_id) await uploadProductPhoto(p.product_id, photoFile);
     setSavedBasis(p.cost_basis_unit);
+    setSavedProductId(p.product_id ?? null);
+    setDoorSent(false);
     setSaving(false);
     setStep(6);
     // Auto price check (DECISIONS #71, Jen 2026-11-13): a product with
@@ -105,12 +109,18 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
     }
   }
 
+  // The hybrid (DECISIONS #74): the instant price above is the price
+  // service's; the TCGplayer price comes through the door (~15 min).
+  async function sendDoor(pid: string, pname: string) {
+    if (await requestPrices([{ product_id: pid, name: pname }])) setDoorSent(true);
+  }
+
   // Rapid entry (DECISIONS #70, Jen 2026-11-13): after a save, one tap
   // starts the next item — camera already open when scanning a stack.
   // Owner and paid-via stay set: a batch usually shares both.
   function resetForNext(openScanner: boolean) {
     setName(""); setBarcode(""); setQty("1"); setUnitPrice(""); setShippingIn("");
-    setPhotoFile(null); setSavedBasis(null); setSavedMarket(null); setPriceNote(null); filledFor.current = "";
+    setPhotoFile(null); setSavedBasis(null); setSavedMarket(null); setPriceNote(null); setSavedProductId(null); setDoorSent(false); filledFor.current = "";
     setStep(0); setScanning(openScanner);
   }
 
@@ -247,8 +257,14 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
           <p className="text-6xl mb-3">✅</p>
           <p className="text-white text-xl font-bold">Saved!</p>
           <p className="text-slate-300 mt-2">{q} × {name} is now in your for-sale stock at {savedBasis !== null ? money(savedBasis) : ""} cost each.</p>
-          {savedMarket !== null && <p className="text-emerald-300 font-bold mt-2">Market price: {money(savedMarket)} each ✓</p>}
+          {savedMarket !== null && <p className="text-emerald-300 font-bold mt-2">Market price: {money(savedMarket)} each · instant</p>}
+          {savedMarket === null && savedProductId && products.find((x) => x.id === savedProductId)?.market_price_source === "tcgplayer" && <p className="text-emerald-300 font-bold mt-2">Market price: {money(Number(products.find((x) => x.id === savedProductId)?.market_price ?? 0))} each · TCGplayer ✓</p>}
           {savedMarket === null && priceNote && <p className="text-slate-400 text-sm mt-2">{priceNote}</p>}
+          {savedProductId && products.find((x) => x.id === savedProductId)?.market_price_source !== "tcgplayer" && (
+            doorSent || priceRequests.some((r) => (r.status === "pending" || r.status === "working") && r.items.some((i) => i.product_id === savedProductId))
+              ? <p className="text-sky-300 font-semibold mt-4">Sent to Maven — the TCGplayer price lands in ~15 min ✓</p>
+              : <div className="mt-6"><BigButton color="slate" onClick={() => void sendDoor(savedProductId, name.trim())}>💲 Get the TCGplayer price — Maven, ~15 min</BigButton></div>
+          )}
           <div className="grid gap-3 mt-6">
             <BigButton color="green" onClick={() => resetForNext(true)}>📷 Scan the next one</BigButton>
             <BigButton onClick={() => resetForNext(false)}>＋ Add another — type it</BigButton>

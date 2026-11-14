@@ -891,3 +891,30 @@ the books were corrected to $125.42 and verified by read-back
 lookups (#71 on-save price, Price Scanner) run on the same
 service key — Jen's ruling was aimed at Update Prices / the door;
 whether the in-app lookups also stop is hers to say.
+#74 — The hybrid, and the trust fix (Jen, 2026-11-13): Judah wants
+a price the moment he enters a product, and he wants it from
+TCGplayer — he can't have both in one number. Instant comes from
+the app's price service; TCGplayer-direct comes through the door
+and can take ~15 minutes. Jen ruled the hybrid. His deeper point
+(Jen: "he's pretty convinced that the app is not giving him
+correct information, and he's right when the app is not finding
+the item"): the old fuzzy matcher could auto-save a WRONG
+variant's price (blister promos at a 0.7 token score) and sample
+prices could render on working screens. Built the same evening:
+(1) The matcher moved to src/lib/match.ts and tightened — a pick
+needs an exact/unique-contains match, or a fuzzy score >= 0.85
+with a 0.2 margin and no unnamed variant siblings; the case-pool
+fallback is gone; siblings return as choices. 11 matcher tests
+in npm test. (2) Sample prices never render as prices: Price
+Scanner and Show Mode buy now say "No real price found" instead
+of showing a fabricated number. (3) Provenance: products.
+market_price_source (migration 022) — 'tcgplayer' for door
+prices, 'service' for instant ones; Inventory marks door prices
+"TCGplayer ✓", Show Mode marks instant ones as instant. The
+door pickup stamps 'tcgplayer' on every write. (4) Door buttons
+where he stands: the BuyFlow Saved screen and the Show Mode
+"Bought!" screen both offer "Get the TCGplayer price — Maven,
+~15 min" for the item just saved (hidden once the price on file
+is already a TCGplayer one, or while a request is open). Show
+Mode buy now also renders match choices instead of a $0 card,
+and tapping an in-stock suggestion loads its on-file price.

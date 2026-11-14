@@ -9,8 +9,11 @@ export interface PriceResult {
   isSample: boolean;
   imageUrl?: string; // real providers only: the online product image
   matchedName?: string; // real providers only: which catalog product matched
+  source?: string; // 'service' = this app's instant price service (DECISIONS #74)
   choices?: PriceResult[]; // real provider only: no confident match — the user picks
 }
+
+import { pickMatch } from "./match";
 
 export interface PriceProvider {
   lookup(name: string, opts?: { fresh?: boolean }): Promise<PriceResult>;
@@ -114,50 +117,12 @@ function writeCache(name: string, price: number): void {
   } catch { /* ignore */ }
 }
 
-function normName(s: string): string {
-  // Hyphens vanish (their catalog writes "ultrapremium", not "ultra premium").
-  return s.toLowerCase().replace(/-/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
-}
-
-const SEALED_WORDS = ["box", "bundle", "tin", "collection", "blister", "booster", "pack", "case"];
 
 // Shop slang their catalog never uses — expand before searching, or the
 // search finds nothing at all (Jen, 2026-11-11: "30th celebration upc").
 const SLANG: Record<string, string> = { upc: "ultra premium collection", etb: "elite trainer box" };
 function expandSlang(name: string): string {
   return name.split(/\s+/).map((w) => SLANG[w.toLowerCase().replace(/[^a-z]/g, "")] ?? w).join(" ");
-}
-
-// Pick the catalog item a name really means — or none. Rules (DECISIONS #42,
-// from the $1,495 Case incident): a CASE never matches a name that doesn't
-// say case; exact/contains wins; otherwise token overlap must be strong.
-// A weak best guess is NOT returned as a price — the caller offers choices.
-function pickMatch(name: string, items: TcgApiItem[]): { pick?: TcgApiItem; choices?: TcgApiItem[] } {
-  const q = normName(name);
-  const qTokens = new Set(q.split(" ").filter(Boolean));
-  const saysCase = qTokens.has("case");
-  const pool = items.filter((d) => {
-    const hasCase = normName(d.name ?? "").split(" ").includes("case");
-    return saysCase ? hasCase : !hasCase;
-  });
-  const usable = pool.length ? pool : items;
-  const exact = usable.find((d) => normName(d.name ?? "") === q);
-  if (exact) return { pick: exact };
-  const contains = usable.find((d) => { const n = normName(d.name ?? ""); return n.includes(q) || q.includes(n); });
-  if (contains) return { pick: contains };
-  const sealedQuery = [...qTokens].some((t) => SEALED_WORDS.includes(t));
-  const scored = usable.map((d) => {
-    const nTokens = new Set(normName(d.name ?? "").split(" ").filter(Boolean));
-    const squished = normName(d.name ?? "").replace(/ /g, "");
-    let hit = 0;
-    for (const t of qTokens) if (nTokens.has(t) || squished.includes(t)) hit++;
-    let score = qTokens.size ? hit / qTokens.size : 0;
-    if (sealedQuery && d.product_type === "Sealed Products") score += 0.05;
-    return { d, score };
-  }).sort((a, b) => b.score - a.score);
-  if (scored.length && scored[0].score >= 0.7) return { pick: scored[0].d };
-  const top = scored.filter((x) => x.score > 0).slice(0, 3).map((x) => x.d);
-  return top.length ? { choices: top } : {};
 }
 
 interface TcgApiItem { name?: string; market_price?: number | null; image_url?: string | null; product_type?: string }
@@ -169,7 +134,7 @@ class TcgApiPriceProvider implements PriceProvider {
     // Prices change daily: an explicit Update/Search tap passes fresh and
     // skips the 12h cache (DECISIONS #45). Incidental lookups still cache.
     const cached = opts?.fresh ? null : readCache(name);
-    if (cached !== null) return { price: cached, provider: "TCG API — real market price", isSample: false };
+    if (cached !== null) return { price: cached, provider: "TCG API — real market price", isSample: false, source: "service" };
     try {
       // The price service's CORS policy only allows its own website, so the
       // browser can never call it directly (DECISIONS #40). The call goes
@@ -211,7 +176,7 @@ class TcgApiPriceProvider implements PriceProvider {
         if (choices) {
           return {
             price: 0, provider: "TCG API — pick the right one", isSample: false,
-            choices: choices.map((d) => ({ price: d.market_price as number, provider: "TCG API — real market price", isSample: false, imageUrl: d.image_url ?? undefined, matchedName: d.name })),
+            choices: choices.map((d) => ({ price: d.market_price as number, provider: "TCG API — real market price", isSample: false, source: "service", imageUrl: d.image_url ?? undefined, matchedName: d.name })),
           };
         }
         const s = await SAMPLE.lookup(name);
@@ -219,7 +184,7 @@ class TcgApiPriceProvider implements PriceProvider {
       }
       const price = pick.market_price as number;
       writeCache(name, price);
-      return { price, provider: "TCG API — real market price", isSample: false, imageUrl: pick.image_url ?? undefined, matchedName: pick.name };
+      return { price, provider: "TCG API — real market price", isSample: false, source: "service", imageUrl: pick.image_url ?? undefined, matchedName: pick.name };
     } catch {
       const s = await SAMPLE.lookup(name);
       return { ...s, provider: "Price service didn't answer — showing SAMPLE", isSample: true };
@@ -274,6 +239,7 @@ export async function identifyByPhoto(dataUrl: string): Promise<IdentifyOutcome>
           price: row?.market_price ?? 0,
           provider: "TCG API — photo scan",
           isSample: false,
+          source: "service",
           imageUrl: c.image_url ?? undefined,
           matchedName: c.name,
         };

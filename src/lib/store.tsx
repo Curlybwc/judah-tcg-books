@@ -676,11 +676,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const stamp = new Date().toISOString();
     if (remoteRef.current) {
       try {
-        const u = await supabase.from("products").update({ market_price: r.price, market_price_at: stamp } as never).eq("id", productId);
+        const u = await supabase.from("products").update({ market_price: r.price, market_price_at: stamp, market_price_source: "service" } as never).eq("id", productId);
         if (u.error) throw u.error;
       } catch { setNotice("Looked the price up, but couldn't save it to the cloud."); return null; }
     }
-    applyLocal((d) => ({ ...d, products: d.products.map((p) => (p.id === productId ? { ...p, market_price: r.price, market_price_at: stamp } : p)) }));
+    applyLocal((d) => ({ ...d, products: d.products.map((p) => (p.id === productId ? { ...p, market_price: r.price, market_price_at: stamp, market_price_source: "service" } : p)) }));
     return r;
   }, [applyLocal]);
 
@@ -688,11 +688,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const stamp = new Date().toISOString();
     if (remoteRef.current) {
       try {
-        const u = await supabase.from("products").update({ name, market_price: price, market_price_at: stamp } as never).eq("id", productId);
+        const u = await supabase.from("products").update({ name, market_price: price, market_price_at: stamp, market_price_source: "service" } as never).eq("id", productId);
         if (u.error) throw u.error;
       } catch { setNotice("The scan worked, but saving the new name didn't — check your connection."); return false; }
     }
-    applyLocal((d) => ({ ...d, products: d.products.map((p) => (p.id === productId ? { ...p, name, market_price: price, market_price_at: stamp } : p)) }));
+    applyLocal((d) => ({ ...d, products: d.products.map((p) => (p.id === productId ? { ...p, name, market_price: price, market_price_at: stamp, market_price_source: "service" } : p)) }));
     return true;
   }, [applyLocal]);
 

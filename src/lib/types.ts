@@ -9,6 +9,7 @@ export interface Product {
   product_type: "sealed" | "single";
   market_price: number | null;
   market_price_at?: string | null; // when market_price was last checked (DECISIONS #35)
+  market_price_source?: string | null; // 'tcgplayer' (door) | 'service' (instant) | null (DECISIONS #74)
   image_url?: string | null; // his own photo (Supabase Storage) or the online product image
   created_at?: string;
 }

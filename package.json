@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node scripts/test-math.mjs && node scripts/test-pirateship.mjs && node scripts/test-slips.mjs"
+    "test": "node scripts/test-math.mjs && node scripts/test-pirateship.mjs && node scripts/test-slips.mjs && node scripts/test-match.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",

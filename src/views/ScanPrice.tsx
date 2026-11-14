@@ -106,14 +106,20 @@ export default function ScanPrice({ go }: { go: (v: View) => void }) {
 
       {step === 2 && result && !result.choices && (
         <div>
+          {result.isSample ? (
+            <div className="rounded-3xl bg-slate-800 border border-slate-700 p-6 text-center mb-4">
+              <p className="text-white font-black text-xl">No real price found for that name.</p>
+              <p className="text-slate-400 text-sm mt-2">If it's in your inventory, Maven can price it straight from TCGplayer — Inventory → 💲 Look up price.</p>
+            </div>
+          ) : (
           <div className="rounded-3xl bg-slate-800 border border-slate-700 p-6 text-center mb-4">
             <p className="text-slate-300 font-semibold">{name}</p>
             <p className="text-6xl font-black text-white mt-2">{money(result.price)}</p>
             {result.imageUrl && <img src={result.imageUrl} alt={result.matchedName ?? name} className="mx-auto mt-3 w-40 h-40 rounded-2xl object-cover bg-slate-700" />}
-            {result.matchedName && !result.isSample && <p className="text-slate-400 text-sm mt-2">Matched: {result.matchedName}</p>}
-            <p className="mt-3">{result.isSample ? <Chip tone="amber">SAMPLE PRICE — demo only, not a real market price</Chip> : <Chip tone="green">{result.provider}</Chip>}</p>
-            {result.isSample && <p className="text-slate-400 text-sm mt-2">{result.provider}</p>}
+            {result.matchedName && <p className="text-slate-400 text-sm mt-2">Matched: {result.matchedName}</p>}
+            <p className="mt-3"><Chip tone="green">{result.provider}</Chip></p>
           </div>
+          )}
           {scansLeft != null && <p className="text-center text-slate-500 text-sm mb-3">📷 {scansLeft} photo scans left on the account</p>}
           <div className="grid gap-3">
             <BigButton onClick={() => go("buy")}>🛒 I bought this</BigButton>

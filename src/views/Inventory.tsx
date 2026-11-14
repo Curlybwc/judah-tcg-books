@@ -150,12 +150,12 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     setSelected(new Set());
   }
   const groups = useMemo(() => {
-    const map = new Map<string, { name: string; market: number | null; marketAt: string | null; productId: string | null; imageUrl: string | null; lots: typeof lots }>();
+    const map = new Map<string, { name: string; market: number | null; marketAt: string | null; source: string | null; productId: string | null; imageUrl: string | null; lots: typeof lots }>();
     for (const lot of lots) {
       if (lot.qty_on_hand <= 0) continue;
       const p = products.find((x) => x.id === lot.product_id);
       const name = p?.name ?? "Product";
-      if (!map.has(name)) map.set(name, { name, market: p?.market_price ?? null, marketAt: p?.market_price_at ?? null, productId: p?.id ?? null, imageUrl: p?.image_url ?? null, lots: [] });
+      if (!map.has(name)) map.set(name, { name, market: p?.market_price ?? null, marketAt: p?.market_price_at ?? null, source: p?.market_price_source ?? null, productId: p?.id ?? null, imageUrl: p?.image_url ?? null, lots: [] });
       map.get(name)!.lots.push(lot);
     }
     return [...map.values()];
@@ -347,7 +347,7 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
               </div>
               {g.market !== null ? (
                 <p className="text-slate-400 text-sm mt-1">
-                  Market <span className="text-slate-100 font-bold">{money(g.market)}</span> each
+                  Market <span className="text-slate-100 font-bold">{money(g.market)}</span> each{g.source === "tcgplayer" && <> · <span className="text-emerald-400 font-semibold">TCGplayer ✓</span></>}
                   {units > 0 && <> · {units} on hand ≈ <span className="text-slate-100 font-semibold">{money(g.market * units)}</span></>}
                   {atMarket !== null && <> · profit if sold <span className={`font-bold ${atMarket >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{atMarket >= 0 ? `+${money(atMarket)}` : `−${money(Math.abs(atMarket))}`}</span></>}
                   {g.marketAt
