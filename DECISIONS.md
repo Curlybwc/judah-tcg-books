@@ -868,3 +868,23 @@ shows the request state and re-checks every 20s while one is open
 so prices land on their own. Maven side: a door check runs about
 every 15 minutes. The tcgapi instant lookup on save (#71) stays as
 the at-entry first pass; door prices overwrite it.
+#73 — Door prices come off TCGplayer itself; the price service is
+out of the price path (Jen corrected Maven, 2026-11-13 ~19:16 CT):
+"we just got rid of the free price service tier. Muse is logging
+into TCG Player now and just finding the prices. That's not the
+same thing as the API to the other app that we had." Maven had
+written the door's pickup instructions (and one manual run) with
+the tcgapi.dev service and its daily quota still in the loop.
+Corrected the same hour: the door pickup now reads each product's
+Market Price off its own page on tcgplayer.com in the browser and
+never uses the price service, its RPCs, or any data mirror as a
+price source. Other catalogs (PriceCharting, retailer spec pages)
+and the product row's own barcode may be used only to pin down
+WHICH variant a physical product is; the price still comes from
+TCGplayer. Disclosure: the Ascended Heroes ETB price written
+earlier tonight ($125.23) came from the price service minutes
+before this correction landed; a re-read from TCGplayer itself
+was sent for the same evening. Still open: the app's own instant
+lookups (#71 on-save price, Price Scanner) run on the same
+service key — Jen's ruling was aimed at Update Prices / the door;
+whether the in-app lookups also stop is hers to say.
