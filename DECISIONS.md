@@ -831,3 +831,15 @@ the current market price — sum over the product's lots of qty x
 (market - cost basis), green when positive, red when under water.
 Fees/shipping ignored: it's the at-market snapshot she asked for,
 next to the title where market and cost already live.
+#70 — Rapid-fire inventory entry (Jen, 2026-11-13): "we should be able
+to input a whole bunch of inventory, one right after the other, with
+as little friction as possible." She never uses Quick Add — the
+barcode scanner is the way in. Three fixes: (1) Inventory's first
+button is now "Scan a barcode — add inventory" (it was below Update
+prices / Ask Muse); it opens Add Inventory with the camera already
+on. (2) The camera button tops Add Inventory's first step instead of
+hiding under the name and photo fields. (3) The Saved screen leads
+with "Scan the next one" (fresh form, camera open) and "Add another
+— type it"; owner and paid-via carry over between items since a
+batch usually shares both. Before this, saving dumped you at Home
+with no way back into the scanner but the full trip around.

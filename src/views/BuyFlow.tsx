@@ -53,6 +53,16 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
     }
   }, [recognized, catalogMatch, barcode]);
 
+  // Arriving from Inventory's "Scan a barcode" button: camera opens itself.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("jtb-open-scanner")) {
+        sessionStorage.removeItem("jtb-open-scanner");
+        setScanning(true);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   const q = parseInt(qty) || 0;
   const up = parseFloat(unitPrice) || 0;
   const rate = parseFloat(taxRate) || 0;
@@ -79,6 +89,15 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
     setStep(6);
   }
 
+  // Rapid entry (DECISIONS #70, Jen 2026-11-13): after a save, one tap
+  // starts the next item — camera already open when scanning a stack.
+  // Owner and paid-via stay set: a batch usually shares both.
+  function resetForNext(openScanner: boolean) {
+    setName(""); setBarcode(""); setQty("1"); setUnitPrice(""); setShippingIn("");
+    setPhotoFile(null); setSavedBasis(null); filledFor.current = "";
+    setStep(0); setScanning(openScanner);
+  }
+
   return (
     <div>
       <ScreenTitle title="🛒 Add Inventory" sub="One step at a time. Big buttons only." />
@@ -86,6 +105,9 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
 
       {step === 0 && (
         <div>
+          <div className="mb-4">
+            <BigButton color="green" onClick={() => setScanning(true)}>📷 Scan the barcode</BigButton>
+          </div>
           <Field label="Type the product name (or tap one you already have)">
             <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. 151 Elite Trainer Box" autoFocus />
           </Field>
@@ -95,7 +117,6 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
           <Field label="Barcode (optional)">
             <input className={inputCls} value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Barcode numbers" inputMode="numeric" />
           </Field>
-          <button onClick={() => setScanning(true)} className="w-full rounded-2xl bg-slate-700 text-white py-3 font-semibold mb-3">📷 Scan the barcode with the camera</button>
           {scanning && <BarcodeScanner onCode={(code) => { setBarcode(code); setScanning(false); }} onClose={() => setScanning(false)} />}
           {recognized ? (
             <p className="rounded-2xl bg-emerald-950/60 border border-emerald-700 text-emerald-200 px-4 py-3 mb-3">
@@ -211,7 +232,9 @@ export default function BuyFlow({ go }: { go: (v: View) => void }) {
           <p className="text-white text-xl font-bold">Saved!</p>
           <p className="text-slate-300 mt-2">{q} × {name} is now in your for-sale stock at {savedBasis !== null ? money(savedBasis) : ""} cost each.</p>
           <div className="grid gap-3 mt-6">
-            <BigButton onClick={() => go("inventory")}>See inventory</BigButton>
+            <BigButton color="green" onClick={() => resetForNext(true)}>📷 Scan the next one</BigButton>
+            <BigButton onClick={() => resetForNext(false)}>＋ Add another — type it</BigButton>
+            <BigButton color="slate" onClick={() => go("inventory")}>See inventory</BigButton>
             <BigButton color="slate" onClick={() => go("home")}>Back to start</BigButton>
           </div>
         </div>

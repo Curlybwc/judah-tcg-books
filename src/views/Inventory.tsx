@@ -227,6 +227,9 @@ ${lines}`;
     <div>
       <ScreenTitle title="📦 Inventory" sub={`${totalUnits} items in stock. (Your personal collection stays in Collectr — this is only for-sale stock.)`} />
       <div className="mb-3">
+        <BigButton color="green" onClick={() => { try { sessionStorage.setItem("jtb-open-scanner", "1"); } catch { /* ignore */ } go("buy"); }}>📷 Scan a barcode — add inventory</BigButton>
+      </div>
+      <div className="mb-3">
         <BigButton onClick={() => void lookupAll()} disabled={priceBusy}>{allProgress ?? "💲 Update prices"}</BigButton>
       </div>
       <button onClick={() => { setAskOpen(!askOpen); setCopied(false); }} className="w-full mb-3 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-bold">
