@@ -174,3 +174,16 @@ export interface LoanInput {
   due_on: string | null;
   note: string;
 }
+
+export interface PriceRequestItem { product_id: string; name: string }
+export interface PriceRequestReport { updated?: { name: string; matched?: string; price: number }[]; skipped?: { name: string; why: string }[] }
+export interface PriceRequest {
+  id: string;
+  owner_id: string;
+  requested_by: string | null;
+  items: PriceRequestItem[];
+  status: "pending" | "working" | "done" | "failed";
+  report: PriceRequestReport | null;
+  created_at: string;
+  completed_at: string | null;
+}

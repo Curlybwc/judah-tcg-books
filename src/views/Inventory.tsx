@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../lib/store";
 import { money , profitAtMarket } from "../lib/math";
 import { BigButton, Chip, Field, inputCls, MoneyInput, ScreenTitle, ownerLabel } from "../components/ui";
@@ -11,7 +11,7 @@ import { useRef } from "react";
 import type { View } from "../App";
 
 export default function Inventory({ go }: { go: (v: View) => void }) {
-  const { lots, products, sales, undoPurchaseForLot, adjustStock, bulkRemoveLots, setProductImage, uploadProductPhoto, refreshMarketPrice, applyIdentified, sets, currentSetId } = useStore();
+  const { lots, products, sales, undoPurchaseForLot, adjustStock, bulkRemoveLots, setProductImage, uploadProductPhoto, applyIdentified, currentSetId, priceRequests, requestPrices, refreshPriceRequests } = useStore();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [adjustId, setAdjustId] = useState<string | null>(null);
   const [editBuyId, setEditBuyId] = useState<string | null>(null);
@@ -26,7 +26,6 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
   const [query, setQuery] = useState("");
   const [priceBusy, setPriceBusy] = useState(false);
   const [priceMsg, setPriceMsg] = useState<string | null>(null);
-  const [allProgress, setAllProgress] = useState<string | null>(null);
 
   const [photoBusy, setPhotoBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -92,43 +91,27 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     setPhotoMsg(ok ? "Photo saved ✓" : "That photo didn't save — try again.");
   }
 
+  // One item through the Maven door (DECISIONS #72).
   async function lookupOne(g: { productId: string | null; name: string }) {
     if (!g.productId || priceBusy) return;
+    if (!currentSetId || currentSetId === "11111111-1111-4111-8111-111111111111") { setPriceMsg("Sign in with your real books first — prices come through Maven there."); return; }
     setPriceBusy(true); setPriceMsg(null);
-    const r = await refreshMarketPrice(g.productId, g.name, true);
+    const ok = await requestPrices([{ product_id: g.productId, name: g.name }]);
     setPriceBusy(false);
-    if (r) {
-      if (r.choices) setPriceMsg(`${g.name}: no sure match, so the price was left as-is. Price Scanner will let you pick the right one.`);
-      else if (r.isSample) setPriceMsg(`${g.name}: ${r.provider} (nothing saved)`);
-      else setPriceMsg(`${g.name}: market price ${r.price} ✓`);
-    }
+    setPriceMsg(ok ? `${g.name}: sent to Maven — the price lands here when he's done.` : `${g.name}: couldn't send — check your connection and tap again.`);
   }
 
+  // Update prices = one door request covering every in-stock product
+  // (DECISIONS #72). No clipboard, no pasting, no Muse account for
+  // Judah — Maven works it from Jen's side and writes prices back.
   async function lookupAll() {
     const targets = groups.filter((g) => g.productId && g.lots.reduce((a, l) => a + l.qty_on_hand, 0) > 0);
     if (!targets.length || priceBusy) return;
+    if (!currentSetId || currentSetId === "11111111-1111-4111-8111-111111111111") { setPriceMsg("Sign in with your real books first — prices come through Maven there."); return; }
     setPriceBusy(true); setPriceMsg(null);
-    let updated = 0; let noMatch = 0; let sampled = 0; let n = 0;
-    const seen = new Map<string, "updated" | "noMatch" | "sampled">();
-    for (const g of targets) {
-      n++;
-      setAllProgress(`Searching for market prices… ${n} of ${targets.length}`);
-      // Same product under several rows/lots: search ONCE per run (Jen,
-      // 2026-11-11). A repeat name reuses the first result — a confident
-      // price comes straight from the just-written cache; a miss is not
-      // re-searched.
-      const key = g.name.trim().toLowerCase();
-      const prior = seen.get(key);
-      if (prior === "noMatch") { noMatch++; continue; }
-      if (prior === "sampled") { sampled++; continue; }
-      const r = await refreshMarketPrice(g.productId!, g.name, prior !== "updated");
-      if (!r) continue;
-      if (r.choices) { noMatch++; seen.set(key, "noMatch"); }
-      else if (r.isSample) { sampled++; seen.set(key, "sampled"); }
-      else { updated++; seen.set(key, "updated"); }
-    }
-    setAllProgress(null); setPriceBusy(false);
-    setPriceMsg(`Prices updated for ${updated} product${updated === 1 ? "" : "s"}.` + (noMatch ? ` ${noMatch} had no sure match — left as-is.` : "") + (sampled ? ` ${sampled} came back sample — not saved.` : "") + " ✓");
+    const ok = await requestPrices(targets.map((g) => ({ product_id: g.productId!, name: g.name })));
+    setPriceBusy(false);
+    setPriceMsg(ok ? `Sent ${targets.length} product${targets.length === 1 ? "" : "s"} to Maven — he's pricing them from TCGplayer now.` : "Couldn't send the price request — check your connection and tap again.");
   }
 
   async function findOnlinePhoto(productId: string, name: string) {
@@ -178,39 +161,17 @@ export default function Inventory({ go }: { go: (v: View) => void }) {
     return [...map.values()];
   }, [lots, products]);
 
-  const [askOpen, setAskOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const needsPrices = groups.filter((g) => g.productId && (g.market == null || !g.marketAt || Date.now() - +new Date(g.marketAt) > 86400e3));
-
-  // The tandem loop (DECISIONS #48): the app writes the prompt, Muse does
-  // the TCGplayer legwork and writes prices back into the books. The prompt
-  // carries today's hard lessons: never a case for a single, no guessing —
-  // flag it and leave it blank.
-  function buildAskPrompt(): string {
-    const setName = sets.find((x) => x.id === currentSetId)?.name ?? "the books";
-    const lines = needsPrices.map((g) => `- "${g.name}" — ${g.market == null ? "no price on file" : `saved price ${money(g.market!)} from ${new Date(g.marketAt!).toLocaleDateString("en-US")}`}`).join("\n");
-    return `Look up TCGplayer market prices for products in my Judah TCG Books and write them back into the books.
-
-The books live in Supabase project zjsxplnyphejklsdhqxz, table public.products, set owner_id = '${currentSetId}' ("${setName}").
-
-For each product below:
-1. Find the exact product on TCGplayer. Match the real product, not a relative: a CASE is not a single box, one edition (like Day vs Night) is not the other, a single pack is not a booster box. If you can't pin it down confidently, DO NOT guess — leave its price alone and flag it.
-2. Use the TCGplayer MARKET price.
-3. Write it back: update public.products set market_price to the price and market_price_at to now, where owner_id = '${currentSetId}' and the name matches exactly.
-4. Read the rows back to verify, then report a table: my product name — the price you saved — the exact TCGplayer product name you matched. List separately anything you left blank, and why.
-
-Products needing prices:
-${lines}`;
-  }
-
-  async function copyAskPrompt() {
-    const text = buildAskPrompt();
-    try { await navigator.clipboard.writeText(text); setCopied(true); }
-    catch {
-      const ta = document.getElementById("ask-prompt") as HTMLTextAreaElement | null;
-      if (ta) { ta.select(); document.execCommand("copy"); setCopied(true); }
-    }
-  }
+  // The Maven price door (DECISIONS #72): the newest request drives the
+  // button state and the status line; while one is open, this screen
+  // re-checks every 20 seconds so prices land on their own.
+  const latestRequest = priceRequests[0] ?? null;
+  const doorBusy = latestRequest?.status === "pending" || latestRequest?.status === "working";
+  const fmtWhen = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  useEffect(() => {
+    if (!doorBusy) return;
+    const t = setInterval(() => { void refreshPriceRequests(); }, 20000);
+    return () => clearInterval(t);
+  }, [doorBusy, refreshPriceRequests]);
 
   const totalUnits = groups.reduce((s, g) => s + g.lots.reduce((a, l) => a + l.qty_on_hand, 0), 0);
   const q = query.trim().toLowerCase();
@@ -230,25 +191,15 @@ ${lines}`;
         <BigButton color="green" onClick={() => { try { sessionStorage.setItem("jtb-open-scanner", "1"); } catch { /* ignore */ } go("buy"); }}>📷 Scan a barcode — add inventory</BigButton>
       </div>
       <div className="mb-3">
-        <BigButton onClick={() => void lookupAll()} disabled={priceBusy}>{allProgress ?? "💲 Update prices"}</BigButton>
+        <BigButton onClick={() => void lookupAll()} disabled={priceBusy || doorBusy}>{doorBusy ? "⏳ Maven is pricing…" : "💲 Update prices — Maven gets them from TCGplayer"}</BigButton>
       </div>
-      <button onClick={() => { setAskOpen(!askOpen); setCopied(false); }} className="w-full mb-3 rounded-2xl bg-slate-800 border border-slate-700 py-3 text-slate-200 font-bold">
-        🤖 Ask Muse for prices{needsPrices.length ? ` (${needsPrices.length} need${needsPrices.length === 1 ? "s" : ""} it)` : ""}
-      </button>
-      {askOpen && (
-        <div className="rounded-2xl bg-slate-800 border border-sky-700 p-4 mb-3">
-          {!currentSetId || currentSetId === "11111111-1111-4111-8111-111111111111" ? (
-            <p className="text-slate-300 text-sm">Sign in with your real books first — Muse writes the prices into your set, and the demo books have nowhere to put them.</p>
-          ) : needsPrices.length === 0 ? (
-            <p className="text-slate-300 text-sm">Every in-stock price is less than a day old — nothing to ask Muse for right now.</p>
-          ) : (
-            <>
-              <p className="text-slate-300 text-sm mb-2">Copy this prompt and paste it into a chat with Muse. Muse looks each product up on <b>TCGplayer itself</b> and writes the market prices straight into these books — then refresh this page to see them.</p>
-              <textarea id="ask-prompt" readOnly rows={12} className="w-full rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-xs p-3 mb-2" value={buildAskPrompt()} />
-              <button onClick={() => void copyAskPrompt()} className="w-full rounded-xl bg-yellow-400 text-slate-900 py-3 font-black">{copied ? "✓ Copied — now paste it to Muse" : "📋 Copy prompt"}</button>
-            </>
-          )}
-        </div>
+      {latestRequest && (
+        <p className="text-slate-400 text-sm mb-3 -mt-1">
+          {latestRequest.status === "pending" && <>Price request sent to Maven {fmtWhen(latestRequest.created_at)} — prices land here when he's done.</>}
+          {latestRequest.status === "working" && <>Maven is pricing your stock right now…</>}
+          {latestRequest.status === "done" && <>✓ Maven updated {latestRequest.report?.updated?.length ?? 0} price{(latestRequest.report?.updated?.length ?? 0) === 1 ? "" : "s"} · {fmtWhen(latestRequest.completed_at ?? latestRequest.created_at)}{(latestRequest.report?.skipped?.length ?? 0) > 0 ? ` · ${latestRequest.report?.skipped?.length} couldn't be matched — tap 💲 on those to send one at a time.` : ""}</>}
+          {latestRequest.status === "failed" && <>⚠️ The last price run didn't finish — tap Update prices to send it again.</>}
+        </p>
       )}
       <div className="mb-3">
         <BigButton onClick={() => go("buy")}>＋ Add inventory — I bought product</BigButton>

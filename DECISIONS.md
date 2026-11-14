@@ -855,3 +855,16 @@ price was left blank. Best-effort only — a failed lookup never
 blocks entry, and a product that already has a price is not
 re-looked-up (Update prices covers refreshes; the free tier is
 100 lookups/day).
+#72 — The price door: Update Prices goes straight to Maven (Jen,
+2026-11-13). Judah can't have Muse (under 18 until Sep 2027) and
+never needed it: the app now files a price request (migration 021,
+price_requests, member RLS) and Maven works it from Jen's side —
+TCGplayer itself, not the data mirror — writes market prices back,
+and closes the request with a per-item report. The clipboard
+"Ask Muse for prices" button is GONE (Jen: the workaround pasting
+was the friction). Update Prices files one request for all in-stock
+products; per-item "Look up price" files a single one; the screen
+shows the request state and re-checks every 20s while one is open
+so prices land on their own. Maven side: a door check runs about
+every 15 minutes. The tcgapi instant lookup on save (#71) stays as
+the at-entry first pass; door prices overwrite it.
