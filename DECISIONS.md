@@ -883,8 +883,11 @@ and the product row's own barcode may be used only to pin down
 WHICH variant a physical product is; the price still comes from
 TCGplayer. Disclosure: the Ascended Heroes ETB price written
 earlier tonight ($125.23) came from the price service minutes
-before this correction landed; a re-read from TCGplayer itself
-was sent for the same evening. Still open: the app's own instant
+before this correction landed. The same-evening re-read from
+TCGplayer itself (product 668496, standard retail ETB, Market
+Price read off its Price Points section) showed $125.42, and
+the books were corrected to $125.42 and verified by read-back
+2026-11-13 ~19:19 CT. Still open: the app's own instant
 lookups (#71 on-save price, Price Scanner) run on the same
 service key — Jen's ruling was aimed at Update Prices / the door;
 whether the in-app lookups also stop is hers to say.
