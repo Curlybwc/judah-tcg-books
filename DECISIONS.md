@@ -825,3 +825,9 @@ and the rule are unchanged; the Mom card now shows two lines —
 "Due from sales" (sold cost + her profit shares + her postage −
 repaid) and "Still in inventory" (on-hand Mom cost). On the Nov
 batch: due $1,622.47, in inventory $667.78, total $2,290.25.
+#69 — "Profit if sold" on Inventory (Jen, 2026-11-13): each product
+card's market line now adds the profit if everything on hand sold at
+the current market price — sum over the product's lots of qty x
+(market - cost basis), green when positive, red when under water.
+Fees/shipping ignored: it's the at-market snapshot she asked for,
+next to the title where market and cost already live.

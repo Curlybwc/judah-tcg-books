@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../lib/store";
-import { money } from "../lib/math";
+import { money , profitAtMarket } from "../lib/math";
 import { BigButton, Chip, Field, inputCls, MoneyInput, ScreenTitle, ownerLabel } from "../components/ui";
 import BarcodeScanner from "../components/BarcodeScanner";
 import { catalogLookup, normalizeBarcode } from "../lib/catalog";
@@ -369,6 +369,7 @@ ${lines}`;
         {q && visibleGroups.length === 0 && <p className="text-slate-400 mb-3">Nothing in stock matches that search.</p>}
         {visibleGroups.map((g) => {
           const units = g.lots.reduce((a, l) => a + l.qty_on_hand, 0);
+          const atMarket = g.market !== null && units > 0 ? profitAtMarket(g.lots, g.market) : null;
           return (
             <div key={g.name} className="rounded-3xl bg-slate-800 border border-slate-700 p-5">
               <div className="flex gap-3">
@@ -394,6 +395,7 @@ ${lines}`;
                 <p className="text-slate-400 text-sm mt-1">
                   Market <span className="text-slate-100 font-bold">{money(g.market)}</span> each
                   {units > 0 && <> · {units} on hand ≈ <span className="text-slate-100 font-semibold">{money(g.market * units)}</span></>}
+                  {atMarket !== null && <> · profit if sold <span className={`font-bold ${atMarket >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{atMarket >= 0 ? `+${money(atMarket)}` : `−${money(Math.abs(atMarket))}`}</span></>}
                   {g.marketAt
                     ? <> · as of {new Date(g.marketAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</>
                     : <> · <span className="text-amber-300">on file, never checked</span></>}

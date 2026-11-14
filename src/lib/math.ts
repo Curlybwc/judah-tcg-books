@@ -293,6 +293,14 @@ export function giovanniShareGross(sales: ShareSale[], lots: LotKind[]): number 
   return round2(total);
 }
 
+/** Profit if everything on hand sold at the current market price
+ *  (DECISIONS #69, Jen 2026-11-13): per product, sum over its lots of
+ *  qty_on_hand x (market - cost basis). Ignores fees/shipping — it is
+ *  the at-market snapshot Jen asked for by each inventory title. */
+export function profitAtMarket(lots: { qty_on_hand: number; cost_basis_unit: number }[], market: number): number {
+  return round2(lots.reduce((a, l) => a + (Number(l.qty_on_hand) || 0) * (market - (Number(l.cost_basis_unit) || 0)), 0));
+}
+
 export interface MomSaleRow { lot_id: string | null; cost_basis_total: number }
 export interface MomLotRow { id: string; owner_kind: string; qty_on_hand: number; cost_basis_unit: number }
 

@@ -14,7 +14,7 @@ cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
 cpSync(join(root, "src/lib/quickbuy.ts"), join(tmp, "quickbuy.ts"));
 cpSync(join(root, "src/lib/catalog.ts"), join(tmp, "catalog.ts"));
 execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "quickbuy.ts", "catalog.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
-const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping, momShippingOwed, profitByPerson, personTaxSummary, giovanniShareGross, jakeOwed, momSplit } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping, momShippingOwed, profitByPerson, personTaxSummary, giovanniShareGross, jakeOwed, momSplit, profitAtMarket } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
 const { parseQuickBuyLine, allocateShipping } = createRequire(import.meta.url)(join(tmp, "out/quickbuy.js"));
 const { UPC_CATALOG, normalizeBarcode, catalogLookup } = createRequire(import.meta.url)(join(tmp, "out/catalog.js"));
 
@@ -196,6 +196,9 @@ const msLots = [{ id: "ML1", owner_kind: "mom_payback", qty_on_hand: 2, cost_bas
 const ms = momSplit([{ lot_id: "ML1", cost_basis_total: 1341.76 }, { lot_id: "ML2", cost_basis_total: 50 }], msLots);
 eq("momsplit: sold cost counts Mom lots only", ms.soldCost, 1341.76);
 eq("momsplit: inventory is on-hand Mom cost", ms.inventoryCost, 128.38);
+eq("atmarket: two lots blend", profitAtMarket([{ qty_on_hand: 2, cost_basis_unit: 64.19 }, { qty_on_hand: 1, cost_basis_unit: 56.68 }], 75), 39.94);
+eq("atmarket: under water goes negative", profitAtMarket([{ qty_on_hand: 1, cost_basis_unit: 58.85 }], 43.38), -15.47);
+eq("atmarket: zero on hand is zero", profitAtMarket([{ qty_on_hand: 0, cost_basis_unit: 10 }], 99), 0);
 
 console.log(fails === 0 ? "ALL MATH TESTS PASSED" : `${fails} FAILURES`);
 process.exit(fails ? 1 : 0);
