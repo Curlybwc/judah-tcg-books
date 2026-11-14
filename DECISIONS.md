@@ -818,3 +818,10 @@ Judah $3,475.87; Judah owes Jake $323.28; Judah owes Mom $2,290.25
 + $1,000 loan = $3,290.25 (net shortfall still $137.66 — Jake's leg
 passes through clean). Still unowned: Winters' ETB and the One
 Piece single ($102.01 of the payout between them).
+#68 — "You owe Mom" splits in two (Jen, 2026-11-13). The single total
+confused Judah: it counts Mom's cost at purchase, so it mixes money
+due from sales with money still sitting in unsold product. The total
+and the rule are unchanged; the Mom card now shows two lines —
+"Due from sales" (sold cost + her profit shares + her postage −
+repaid) and "Still in inventory" (on-hand Mom cost). On the Nov
+batch: due $1,622.47, in inventory $667.78, total $2,290.25.

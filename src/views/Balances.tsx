@@ -105,7 +105,7 @@ function LoanForm({ initial, onSave, onCancel }: {
 export default function Balances({ go }: { go: (v: View) => void }) {
   const { loans, loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment,
     giovanniOwed, giovanniShare, giovanniFronted, giovanniOwnNet, payments, addGiovanniPayment, deleteGiovanniPayment,
-    momOwed, momShipOwed, momPayments, addMomPayment, deleteMomPayment, purchases, sales, lots,
+    momOwed, momBreakdown, momShipOwed, momPayments, addMomPayment, deleteMomPayment, purchases, sales, lots,
     jakeOwed, jakeBreakdown, jakePayments, addJakePayment } = useStore();
   const profitSplit = useMemo(() => profitByPerson(sales, lots), [sales, lots]);
   const [mode, setMode] = useState<"list" | "new" | "detail" | "edit">("list");
@@ -261,7 +261,11 @@ export default function Balances({ go }: { go: (v: View) => void }) {
       <div className="rounded-3xl bg-slate-800 border border-sky-500/50 p-5 mb-3">
         <p className="text-sky-300 font-semibold text-sm">You owe Mom</p>
         <p className="text-4xl font-black text-white">{money(momOwed)}</p>
-        <p className="text-slate-400 text-sm">The full cost of everything she paid for, plus her 50% of the profit when those things sell (profit = what you got for it, after fees and shipping, minus its cost). You've paid her back {money(momRepaid)} so far.</p>
+        <div className="mt-2 grid gap-1.5 text-sm">
+          <p className="flex justify-between gap-3"><span className="text-slate-400">Due from sales — her cost back, her half of the profit, postage</span><span className="text-white font-bold whitespace-nowrap">{money(momBreakdown.dueFromSales)}</span></p>
+          <p className="flex justify-between gap-3"><span className="text-slate-400">Still in inventory — product on the shelf she paid for</span><span className="text-white font-bold whitespace-nowrap">{money(momBreakdown.inInventory)}</span></p>
+        </div>
+        <p className="text-slate-400 text-sm mt-2">You've paid her back {money(momRepaid)} so far.</p>
         {momShipOwed > 0 && <p className="text-slate-400 text-sm mt-1">Includes {money(momShipOwed)} of postage that came out of her bank account (the Pirate Ship labels).</p>}
         <div className="flex gap-2 mt-3">
           <div className="flex-1"><MoneyInput value={momAmount} onChange={setMomAmount} placeholder="0.00" /></div>

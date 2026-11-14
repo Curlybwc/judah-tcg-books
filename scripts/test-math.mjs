@@ -14,7 +14,7 @@ cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
 cpSync(join(root, "src/lib/quickbuy.ts"), join(tmp, "quickbuy.ts"));
 cpSync(join(root, "src/lib/catalog.ts"), join(tmp, "catalog.ts"));
 execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "quickbuy.ts", "catalog.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
-const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping, momShippingOwed, profitByPerson, personTaxSummary, giovanniShareGross, jakeOwed } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping, momShippingOwed, profitByPerson, personTaxSummary, giovanniShareGross, jakeOwed, momSplit } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
 const { parseQuickBuyLine, allocateShipping } = createRequire(import.meta.url)(join(tmp, "out/quickbuy.js"));
 const { UPC_CATALOG, normalizeBarcode, catalogLookup } = createRequire(import.meta.url)(join(tmp, "out/catalog.js"));
 
@@ -192,6 +192,10 @@ eq("jake memo: net = gross - fees - shipping", scK.netProfit, 323.28);
 eq("jake: Gio owes the gross on Jake's stock too", giovanniShareGross([jakeSale], jLots), 332.78);
 eq("jake: owed = gross - fees - shipping", jakeOwed([jakeSale], jLots, 0), 323.28);
 eq("jake: owed drops by payments", jakeOwed([jakeSale], jLots, 100), 223.28);
+const msLots = [{ id: "ML1", owner_kind: "mom_payback", qty_on_hand: 2, cost_basis_unit: 64.19 }, { id: "ML2", owner_kind: "mine", qty_on_hand: 5, cost_basis_unit: 10 }];
+const ms = momSplit([{ lot_id: "ML1", cost_basis_total: 1341.76 }, { lot_id: "ML2", cost_basis_total: 50 }], msLots);
+eq("momsplit: sold cost counts Mom lots only", ms.soldCost, 1341.76);
+eq("momsplit: inventory is on-hand Mom cost", ms.inventoryCost, 128.38);
 
 console.log(fails === 0 ? "ALL MATH TESTS PASSED" : `${fails} FAILURES`);
 process.exit(fails ? 1 : 0);

@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { priceProvider, type PriceResult } from "./priceProvider";
-import { frontedShipping, momShippingOwed, profitByPerson, giovanniShareGross, jakeOwed } from "./math";
+import { frontedShipping, momShippingOwed, profitByPerson, giovanniShareGross, jakeOwed, momSplit } from "./math";
 import { SAMPLE_OWNER_ID } from "./config";
 import type { BookMember, BookSet, Expense, ExpenseCategory, GiovanniPayment, JakePayment, Loan, LoanInput, LoanPayment, Lot, MomPayment, Product, Purchase, Sale, Show } from "./types";
 import { blobToDataUrl, compressImageFile } from "./photos";
@@ -94,6 +94,7 @@ interface Store {
   setProductImage: (productId: string, url: string) => Promise<void>;
   uploadProductPhoto: (productId: string, file: File) => Promise<boolean>;
   momOwed: number;
+  momBreakdown: { dueFromSales: number; inInventory: number };
   momShipOwed: number;
   giovanniShare: number;
   giovanniFronted: number;
@@ -794,6 +795,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // DECISIONS #66: Giovanni owes the GROSS — the payout on Judah's and
   // Mom's stock before any postage comes out (postage settles separately).
+  // DECISIONS #68: the Mom total split for display — what's due from
+  // sales (sold cost + her profit shares + her postage − repaid) vs.
+  // what's still sitting in unsold product.
+  const momBreakdown = useMemo(() => {
+    const { soldCost, inventoryCost } = momSplit(data.sales, data.lots);
+    const shares = data.sales.reduce((sum, x) => sum + Number(x.mom_share ?? 0), 0);
+    const repaid = data.momPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    return { dueFromSales: Math.round((soldCost + shares + momShipOwed - repaid) * 100) / 100, inInventory: inventoryCost };
+  }, [data.sales, data.lots, data.momPayments, momShipOwed]);
+
   const giovanniShare = useMemo(() => giovanniShareGross(data.sales, data.lots), [data.sales, data.lots]);
   const giovanniFronted = useMemo(() => frontedShipping(data.sales, data.lots), [data.sales, data.lots]);
   const giovanniOwnNet = useMemo(() => {
@@ -850,7 +861,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     ready, remote, notice, userEmail, userId, sets, members, currentSetId, switchSet, createSet, joinSet, resetJoinCode, removeMember, leaveSet, ownerId,
     products: data.products, purchases: data.purchases, lots: data.lots, sales: data.sales, payments: data.payments,
     shows: data.shows, activeShow, pendingCount: outbox.length, syncNow, startShow, closeShow, recordQuickSale,
-    momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, loans: data.loans, loanPayments: data.loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment, refreshMarketPrice, applyIdentified, priceKeyInBooks, savePriceKey, setProductImage, uploadProductPhoto, momOwed, momShipOwed, giovanniShare, giovanniFronted, giovanniOwnNet, addMomPayment, deleteMomPayment, bulkRemoveLots,
+    momPayments: data.momPayments, expenses: data.expenses, addExpense, deleteExpense, loans: data.loans, loanPayments: data.loanPayments, addLoan, updateLoan, deleteLoan, addLoanPayment, deleteLoanPayment, refreshMarketPrice, applyIdentified, priceKeyInBooks, savePriceKey, setProductImage, uploadProductPhoto, momOwed, momBreakdown, momShipOwed, giovanniShare, giovanniFronted, giovanniOwnNet, addMomPayment, deleteMomPayment, bulkRemoveLots,
     giovanniOwed, jakePayments: data.jakePayments, jakeOwed: jakeOwedTotal, jakeBreakdown, addJakePayment, deleteJakePayment, totalProfit, signIn, signInWithGoogle, signOut, addPurchase, updatePurchase, recordSales, addGiovanniPayment, deleteSale, adjustStock, undoPurchaseForLot, deleteGiovanniPayment, recordBankImport,
     reload: () => load(ownerRef.current),
   };

@@ -293,6 +293,22 @@ export function giovanniShareGross(sales: ShareSale[], lots: LotKind[]): number 
   return round2(total);
 }
 
+export interface MomSaleRow { lot_id: string | null; cost_basis_total: number }
+export interface MomLotRow { id: string; owner_kind: string; qty_on_hand: number; cost_basis_unit: number }
+
+/** The two halves of what Judah owes Mom (DECISIONS #68, Jen 2026-11-13):
+ *  her money that has come due from sales vs. her money still sitting in
+ *  unsold product. soldCost = cost basis of Mom lots already sold;
+ *  inventoryCost = cost basis of Mom lots still on hand. */
+export function momSplit(sales: MomSaleRow[], lots: MomLotRow[]): { soldCost: number; inventoryCost: number } {
+  const kind = new Map(lots.map((l) => [l.id, l.owner_kind]));
+  let sold = 0;
+  for (const s of sales) if (s.lot_id && isMomKind(kind.get(s.lot_id) ?? "")) sold += Number(s.cost_basis_total) || 0;
+  let inv = 0;
+  for (const l of lots) if (isMomKind(l.owner_kind)) inv += (Number(l.qty_on_hand) || 0) * (Number(l.cost_basis_unit) || 0);
+  return { soldCost: round2(sold), inventoryCost: round2(inv) };
+}
+
 /** Postage Mom fronted (DECISIONS #51, Jen's ruling): the Pirate Ship
  *  account draws on HER bank account, so every Mom-paid shipping charge
  *  is money out of her pocket and joins what Judah owes her. Only the
