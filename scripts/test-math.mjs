@@ -14,7 +14,7 @@ cpSync(join(root, "src/lib/math.ts"), join(tmp, "math.ts"));
 cpSync(join(root, "src/lib/quickbuy.ts"), join(tmp, "quickbuy.ts"));
 cpSync(join(root, "src/lib/catalog.ts"), join(tmp, "catalog.ts"));
 execFileSync(join(root, "node_modules/.bin/tsc"), ["math.ts", "quickbuy.ts", "catalog.ts", "--module", "commonjs", "--target", "es2020", "--outDir", "out"], { cwd: tmp, stdio: "inherit" });
-const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping, momShippingOwed, profitByPerson, personTaxSummary, giovanniShareGross, jakeOwed, momSplit, profitAtMarket } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
+const { purchaseMath, saleMath, giovanniBalance, quickSaleMath, showCashExpected, taxFromRate, momProfitShare, taxSummary, loanMath, frontedShipping, momShippingOwed, profitByPerson, personTaxSummary, giovanniShareGross, jakeOwed, momSplit, profitAtMarket, momSheet, giovanniSheet } = createRequire(import.meta.url)(join(tmp, "out/math.js"));
 const { parseQuickBuyLine, allocateShipping } = createRequire(import.meta.url)(join(tmp, "out/quickbuy.js"));
 const { UPC_CATALOG, normalizeBarcode, catalogLookup } = createRequire(import.meta.url)(join(tmp, "out/catalog.js"));
 
@@ -199,6 +199,33 @@ eq("momsplit: inventory is on-hand Mom cost", ms.inventoryCost, 128.38);
 eq("atmarket: two lots blend", profitAtMarket([{ qty_on_hand: 2, cost_basis_unit: 64.19 }, { qty_on_hand: 1, cost_basis_unit: 56.68 }], 75), 39.94);
 eq("atmarket: under water goes negative", profitAtMarket([{ qty_on_hand: 1, cost_basis_unit: 58.85 }], 43.38), -15.47);
 eq("atmarket: zero on hand is zero", profitAtMarket([{ qty_on_hand: 0, cost_basis_unit: 10 }], 99), 0);
+
+// DECISIONS #75: the two balance sheets (fixtures mirror the real Nov 2026 rows).
+const shLots = [
+  { id: "ML", owner_kind: "mom_payback" }, { id: "JL", owner_kind: "mine" },
+  { id: "GL", owner_kind: "giovanni" }, { id: "KL", owner_kind: "jake" },
+];
+const shSales = [
+  { id: "s1", lot_id: "ML", sold_on: "2026-11-06", product_name: "UPC [Day]", qty: 1, item_price: 363.50, shipping_charged: 0, shipping_paid: 7.89, ship_paid_by: "mom", fees: 49.10, cost_basis_total: 271.25, profit: 35.26, mom_share: 17.63, channel: "tcgplayer" },
+  { id: "s2", lot_id: "JL", sold_on: "2026-11-06", product_name: "UPC [Day]", qty: 1, item_price: 382.55, shipping_charged: 0, shipping_paid: 10.26, ship_paid_by: "mom", fees: 51.78, cost_basis_total: 271.25, profit: 59.51, mom_share: 0, channel: "tcgplayer" },
+  { id: "s3", lot_id: "GL", sold_on: "2026-11-06", product_name: "UPC [Day]", qty: 1, item_price: 382.55, shipping_charged: 0, shipping_paid: 8.36, ship_paid_by: "mom", fees: 51.65, cost_basis_total: 271.25, profit: 51.29, mom_share: 0, channel: "tcgplayer" },
+  { id: "s4", lot_id: "KL", sold_on: "2026-11-06", product_name: "UPC [Day]", qty: 1, item_price: 384.43, shipping_charged: 0, shipping_paid: 9.50, ship_paid_by: "mom", fees: 51.65, cost_basis_total: 0, profit: 323.28, mom_share: 0, channel: "tcgplayer" },
+];
+const msh = momSheet(shSales, shLots);
+eq("sheet75: mom own rows", msh.own.length, 1);
+eq("sheet75: mom row left", msh.own[0].left, 306.51);
+eq("sheet75: mom row owed = cost + half + her postage", msh.own[0].owed, 296.77);
+eq("sheet75: judah ship rows", msh.judahShip.length, 1);
+eq("sheet75: giovanni ship rows", msh.giovanniShip.length, 1);
+eq("sheet75: jake ship rows", msh.jakeShip.length, 1);
+eq("sheet75: owed from sales ties out", msh.owedFromSales, 324.89);
+const gsh = giovanniSheet(shSales, shLots);
+eq("sheet75: gio share rows exclude his own", gsh.shareRows.length, 3);
+eq("sheet75: gio share = giovanniShareGross", gsh.share, giovanniShareGross(shSales, shLots));
+eq("sheet75: gio share hand-check", gsh.share, 977.95);
+eq("sheet75: gio fronted = frontedShipping", gsh.fronted, frontedShipping(shSales, shLots));
+eq("sheet75: gio fronted hand-check", gsh.fronted, 8.36);
+eq("sheet75: jake row labelled Jake", gsh.shareRows.find((r) => r.whose === "Jake")?.share ?? -1, 332.78);
 
 console.log(fails === 0 ? "ALL MATH TESTS PASSED" : `${fails} FAILURES`);
 process.exit(fails ? 1 : 0);

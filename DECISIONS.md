@@ -918,3 +918,25 @@ where he stands: the BuyFlow Saved screen and the Show Mode
 is already a TCGplayer one, or while a request is open). Show
 Mode buy now also renders match choices instead of a $0 card,
 and tapping an in-stock suggestion loads its on-file price.
+#75 — The balance sheets, tappable and exportable (Jen, 2026-11-25):
+Jen: "I wish there was a way to click on the app where it says
+'You owe mom' and it would show that spreadsheet — and the same
+for what Giovanni owes. I want those sheets exportable." Built
+the same evening: both Who Owes Who cards carry a "📋 See the
+sheet — every sale" button. The Mom sheet lists every Mom sale
+(what she paid, sold for, shipping, fees, total left, profit,
+her half, owed for that sale = cost + half + postage she fronted
+on it), then the postage she fronted on Judah's, Giovanni's and
+Jake's own product as its own rows, then the totals — owed from
+sales, less paid back, plus open Mom loans, with her unsold
+stock ($763.17 at cost on 2026-11-25) shown as not owed until it
+sells. The Giovanni sheet lists every share sale (whose it was,
+sold for, fees, his share), the postage fronted on his product
+and who fronted it, his payments, and the balance. Both sheets
+have a "⬇️ Download this sheet (CSV)" button. The math lives in
+math.ts (momSheet / giovanniSheet, DECISIONS #75 tests in
+npm test): the Giovanni sheet's totals equal giovanniShareGross
+and frontedShipping by construction, and the Mom sheet's owed-
+from-sales equals sold cost + her shares + her postage — the
+same numbers the cards already showed, now with every sale
+visible behind them.

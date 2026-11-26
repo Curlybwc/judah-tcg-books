@@ -1,9 +1,23 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../lib/store";
-import { loanMath, money, profitByPerson } from "../lib/math";
+import { giovanniSheet, loanMath, momSheet, money, profitByPerson, round2 } from "../lib/math";
 import { BigButton, Chip, Field, MathRow, MoneyInput, ScreenTitle, inputCls } from "../components/ui";
 import type { View } from "../App";
 import type { InterestType, Loan, LoanInput } from "../lib/types";
+
+function csvCell(v: unknown): string {
+  const s = String(v ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(filename: string, rows: unknown[][]) {
+  const csv = rows.map((r) => r.map(csvCell).join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 
 const today = () => new Date().toISOString().slice(0, 10);
 const fmtDate = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -108,7 +122,7 @@ export default function Balances({ go }: { go: (v: View) => void }) {
     momOwed, momBreakdown, momShipOwed, momPayments, addMomPayment, deleteMomPayment, purchases, sales, lots,
     jakeOwed, jakeBreakdown, jakePayments, addJakePayment } = useStore();
   const profitSplit = useMemo(() => profitByPerson(sales, lots), [sales, lots]);
-  const [mode, setMode] = useState<"list" | "new" | "detail" | "edit">("list");
+  const [mode, setMode] = useState<"list" | "new" | "detail" | "edit" | "momSheet" | "gioSheet">("list");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState("");
   const [payDate, setPayDate] = useState(today());
@@ -141,6 +155,12 @@ export default function Balances({ go }: { go: (v: View) => void }) {
     for (const p of purchases) m.set(p.owner_kind, Math.round(((m.get(p.owner_kind) ?? 0) + Number(p.total_cost)) * 100) / 100);
     return m;
   }, [purchases]);
+
+  // DECISIONS #75: the two sheets behind the balance cards.
+  const momSh = useMemo(() => momSheet(sales, lots), [sales, lots]);
+  const gioSh = useMemo(() => giovanniSheet(sales, lots), [sales, lots]);
+  const momLoanOwed = round2(rows.filter((r) => r.loan.lender === "Mom" && !r.m.paidOff).reduce((s, r) => s + r.m.owed, 0));
+  const momStillFromSales = round2(momSh.owedFromSales - momRepaid);
 
   if (mode === "new") {
     return (
@@ -210,6 +230,146 @@ export default function Balances({ go }: { go: (v: View) => void }) {
     );
   }
 
+  if (mode === "momSheet") {
+    const shipSection = (title: string, rs: typeof momSh.judahShip) => rs.length === 0 ? null : (
+      <div className="mb-4">
+        <p className="text-slate-300 font-bold mb-2">{title}</p>
+        <div className="grid gap-2">
+          {rs.map((r) => (
+            <div key={r.id} className="rounded-2xl bg-slate-800 border border-slate-700 p-4">
+              <p className="text-white font-bold">{r.name}</p>
+              <p className="text-slate-400 text-sm mb-2">{fmtDate(r.date)} · sold for {money(r.price)}</p>
+              <MathRow label="Shipping Mom paid — owed back" value={money(r.shipping)} bold />
+            </div>
+          ))}
+        </div>
+        <p className="text-right text-white font-bold mt-2">Subtotal {money(round2(rs.reduce((a, r) => a + r.shipping, 0)))}</p>
+      </div>
+    );
+    const momCsv = (): unknown[][] => {
+      const out: unknown[][] = [["Mom's sales — what Judah owes Mom"], [], ["Date sold", "Item", "Qty", "What Mom paid", "Sold for", "Shipping", "Fees", "Total left", "Profit", "Mom's half of profit", "Owed to Mom"]];
+      for (const r of momSh.own) out.push([r.date, r.name, r.qty, r.cost, r.price, r.shipping, r.fees, r.left, r.profit, r.half, r.owed]);
+      const t = momSh.ownTotals;
+      out.push(["", "TOTAL — Mom's own sales", "", t.cost, t.price, t.shipping, t.fees, t.left, t.profit, t.half, t.owed]);
+      const sec = (title: string, rs: typeof momSh.judahShip) => {
+        if (!rs.length) return;
+        out.push([], [title], ["Date sold", "Item", "", "", "Sold for", "Shipping Mom paid", "", "", "", "", "Owed to Mom"]);
+        for (const r of rs) out.push([r.date, r.name, "", "", r.price, r.shipping, "", "", "", "", r.shipping]);
+      };
+      sec("Judah's items — Mom paid the shipping", momSh.judahShip);
+      sec("Giovanni's items — Mom paid the shipping", momSh.giovanniShip);
+      sec("Jake's items — Mom paid the shipping", momSh.jakeShip);
+      out.push([], ["Owed to Mom from everything that sold", "", "", "", "", "", "", "", "", "", momSh.owedFromSales]);
+      if (momRepaid > 0) out.push(["Paid back so far", "", "", "", "", "", "", "", "", "", -momRepaid]);
+      out.push(["Still owed to Mom from sales", "", "", "", "", "", "", "", "", "", momStillFromSales]);
+      if (momLoanOwed > 0) out.push(["Loans from Mom still open", "", "", "", "", "", "", "", "", "", momLoanOwed]);
+      out.push([`Not counted: ${money(momBreakdown.inInventory)} of Mom's stock is still in inventory — owed when it sells.`]);
+      return out;
+    };
+    return (
+      <div>
+        <ScreenTitle title="🟦 You owe Mom — the sheet" sub="Only what has sold. Owed for a sale = what Mom paid for it + her half of the profit + the shipping she paid on it." />
+        <div className="grid gap-2 mb-4">
+          {momSh.own.map((r) => (
+            <div key={r.id} className="rounded-2xl bg-slate-800 border border-slate-700 p-4">
+              <p className="text-white font-bold">{r.name}{r.qty > 1 ? ` ×${r.qty}` : ""}</p>
+              <p className="text-slate-400 text-sm mb-2">{fmtDate(r.date)}{r.channel !== "tcgplayer" ? " · at the show" : ""}</p>
+              <MathRow label="What Mom paid" value={money(r.cost)} />
+              <MathRow label="Sold for" value={money(r.price)} />
+              <MathRow label="Shipping" value={money(r.shipping)} />
+              <MathRow label="Fees" value={money(r.fees)} />
+              <MathRow label="Total left" value={money(r.left)} />
+              <MathRow label="Profit" value={money(r.profit)} />
+              <MathRow label="Mom's half of the profit" value={money(r.half)} />
+              <MathRow label="Owed to Mom for this sale" value={money(r.owed)} bold />
+            </div>
+          ))}
+          {momSh.own.length === 0 && <p className="text-slate-400 text-sm">None of Mom's product has sold yet.</p>}
+        </div>
+        {shipSection("Judah's items — Mom paid the shipping", momSh.judahShip)}
+        {shipSection("Giovanni's items — Mom paid the shipping", momSh.giovanniShip)}
+        {shipSection("Jake's items — Mom paid the shipping", momSh.jakeShip)}
+        <div className="rounded-2xl bg-slate-800 border border-sky-500/50 p-4 mb-4">
+          <MathRow label="Owed to Mom from everything that sold" value={money(momSh.owedFromSales)} bold />
+          {momRepaid > 0 && <MathRow label="You've paid her back" value={`−${money(momRepaid)}`} negative />}
+          <MathRow label="Still owed to Mom from sales" value={money(momStillFromSales)} bold />
+          {momLoanOwed > 0 && <MathRow label="Plus loans from Mom (below, in Loans)" value={money(momLoanOwed)} />}
+          <p className="text-slate-400 text-sm mt-2">Not counted: {money(momBreakdown.inInventory)} of Mom's stock is still in inventory — you don't owe for it until it sells.</p>
+        </div>
+        <div className="grid gap-3">
+          <BigButton color="green" onClick={() => downloadCsv(`mom-sheet-${today()}.csv`, momCsv())}>⬇️ Download this sheet (CSV)</BigButton>
+          <BigButton color="slate" onClick={() => setMode("list")}>← Back to Who Owes Who</BigButton>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === "gioSheet") {
+    const gioCsv = (): unknown[][] => {
+      const out: unknown[][] = [["Giovanni's balance — the sheet"], [], ["His share — sales of Judah's, Mom's and Jake's product"], ["Date sold", "Item", "Whose it was", "Sold for", "TCGplayer fees", "His share"]];
+      for (const r of gioSh.shareRows) out.push([r.date, r.name, r.whose, r.item, r.fees, r.share]);
+      out.push(["", "", "", "", "Share total", gioSh.share], [], ["Postage fronted on his own product"], ["Date sold", "Item", "Postage", "Paid by"]);
+      for (const r of gioSh.frontedRows) out.push([r.date, r.name, r.shipping, r.paidBy]);
+      out.push(["", "", "Fronted total", gioSh.fronted], [], ["Payments he has made"], ["Date", "Amount", "Note"]);
+      for (const p of payments) out.push([p.paid_on, Number(p.amount), p.note ?? ""]);
+      out.push([], ["Share", gioSh.share], ["Fronted postage", gioSh.fronted], ["Paid back", -paidBack], ["GIOVANNI STILL OWES", giovanniOwed]);
+      return out;
+    };
+    return (
+      <div>
+        <ScreenTitle title="💛 Giovanni owes you — the sheet" sub="Every sale behind his balance: what TCGplayer paid him for your product, the postage fronted on his, and what he has paid back." />
+        <p className="text-slate-300 font-bold mb-2">His share — sales of Judah's, Mom's and Jake's product</p>
+        <div className="grid gap-2 mb-4">
+          {gioSh.shareRows.map((r) => (
+            <div key={r.id} className="rounded-2xl bg-slate-800 border border-slate-700 p-4">
+              <p className="text-white font-bold">{r.name}</p>
+              <p className="text-slate-400 text-sm mb-2">{fmtDate(r.date)} · {r.whose}'s</p>
+              <MathRow label="Sold for" value={money(r.item)} />
+              <MathRow label="TCGplayer fees" value={`−${money(r.fees)}`} negative />
+              <MathRow label="His share — goes on his bill" value={money(r.share)} bold />
+            </div>
+          ))}
+          <p className="text-right text-white font-bold">Share total {money(gioSh.share)}</p>
+        </div>
+        {gioSh.frontedRows.length > 0 && (
+          <>
+            <p className="text-slate-300 font-bold mb-2">Postage fronted on his own product</p>
+            <div className="grid gap-2 mb-4">
+              {gioSh.frontedRows.map((r) => (
+                <div key={r.id} className="rounded-2xl bg-slate-800 border border-slate-700 p-4">
+                  <p className="text-white font-bold">{r.name}</p>
+                  <p className="text-slate-400 text-sm mb-2">{fmtDate(r.date)}</p>
+                  <MathRow label={`Postage — paid by ${r.paidBy}`} value={money(r.shipping)} bold />
+                </div>
+              ))}
+              <p className="text-right text-white font-bold">Fronted total {money(gioSh.fronted)}</p>
+            </div>
+          </>
+        )}
+        {payments.length > 0 && (
+          <>
+            <p className="text-slate-300 font-bold mb-2">Payments he has made</p>
+            <div className="grid gap-2 mb-4">
+              {payments.map((p) => (
+                <div key={p.id} className="rounded-2xl bg-slate-800 border border-slate-700 px-4 py-3 text-slate-200 text-sm">{fmtDate(p.paid_on)} — <span className="font-bold text-white">{money(Number(p.amount))}</span>{p.note ? <span className="text-slate-400"> · {p.note}</span> : null}</div>
+              ))}
+            </div>
+          </>
+        )}
+        <div className="rounded-2xl bg-gradient-to-br from-yellow-400 to-amber-500 p-4 mb-4">
+          <MathRow label="His share" value={money(gioSh.share)} />
+          <MathRow label="Postage fronted on his product" value={`+${money(gioSh.fronted)}`} />
+          <MathRow label="He has paid back" value={`−${money(paidBack)}`} negative />
+          <MathRow label="Giovanni still owes you" value={money(giovanniOwed)} bold />
+        </div>
+        <div className="grid gap-3">
+          <BigButton color="green" onClick={() => downloadCsv(`giovanni-sheet-${today()}.csv`, gioCsv())}>⬇️ Download this sheet (CSV)</BigButton>
+          <BigButton color="slate" onClick={() => setMode("list")}>← Back to Who Owes Who</BigButton>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <ScreenTitle title="🤝 Who Owes Who" sub="Every balance with everybody — Giovanni, Mom, Jake, and loans — in one place." />
@@ -232,6 +392,7 @@ export default function Balances({ go }: { go: (v: View) => void }) {
           <p>He has already paid you back {money(paidBack)} by Zelle.</p>
           {giovanniOwnNet > 0 && <p className="mt-1">His own product sold for {money(giovanniOwnNet)} net — that money is his; it went straight to him.</p>}
         </div>
+        <button onClick={() => setMode("gioSheet")} className="mt-3 w-full rounded-2xl bg-slate-900/85 text-white py-2.5 font-bold">📋 See the sheet — every sale</button>
         <div className="flex gap-2 mt-3">
           <div className="flex-1"><MoneyInput value={gioAmount} onChange={setGioAmount} placeholder="0.00" /></div>
           <button
@@ -267,6 +428,7 @@ export default function Balances({ go }: { go: (v: View) => void }) {
         </div>
         <p className="text-slate-400 text-sm mt-2">You've paid her back {money(momRepaid)} so far.</p>
         {momShipOwed > 0 && <p className="text-slate-400 text-sm mt-1">Includes {money(momShipOwed)} of postage that came out of her bank account (the Pirate Ship labels).</p>}
+        <button onClick={() => setMode("momSheet")} className="mt-3 w-full rounded-2xl bg-sky-600 text-white py-2.5 font-bold">📋 See the sheet — every sale</button>
         <div className="flex gap-2 mt-3">
           <div className="flex-1"><MoneyInput value={momAmount} onChange={setMomAmount} placeholder="0.00" /></div>
           <button

@@ -329,3 +329,80 @@ export function momShippingOwed(sales: FrontedSale[]): number {
   }
   return round2(total);
 }
+
+export interface BalanceSheetSale {
+  id: string; lot_id: string | null; sold_on: string; product_name: string; qty: number;
+  item_price: number; shipping_charged: number; shipping_paid: number; ship_paid_by?: string | null;
+  fees: number; cost_basis_total: number; profit: number; mom_share?: number | null; channel?: string | null;
+}
+
+export interface MomOwnRow { id: string; date: string; name: string; qty: number; channel: string; cost: number; price: number; shipping: number; fees: number; left: number; profit: number; half: number; owed: number }
+export interface MomShipRow { id: string; date: string; name: string; price: number; shipping: number }
+export interface MomSheet {
+  own: MomOwnRow[];
+  judahShip: MomShipRow[]; giovanniShip: MomShipRow[]; jakeShip: MomShipRow[];
+  ownTotals: { cost: number; price: number; shipping: number; fees: number; left: number; profit: number; half: number; owed: number };
+  shipTotal: number; owedFromSales: number;
+}
+
+/** The sheet behind "You owe Mom" (DECISIONS #75, Jen 2026-11-25): every
+ *  Mom sale with what she paid, what it sold for, and what that sale put
+ *  on Judah's bill — her cost back + her half of the profit + the postage
+ *  she fronted on it. Postage she fronted on the boys' own product rides
+ *  as its own rows, owed back dollar for dollar. Sold only: unsold stock
+ *  owes nothing until it sells. */
+export function momSheet(sales: BalanceSheetSale[], lots: LotKind[]): MomSheet {
+  const kind = new Map(lots.map((l) => [l.id, l.owner_kind]));
+  const sorted = [...sales].sort((a, b) => (a.sold_on < b.sold_on ? -1 : a.sold_on > b.sold_on ? 1 : a.product_name < b.product_name ? -1 : 1));
+  const own: MomOwnRow[] = [];
+  const judahShip: MomShipRow[] = []; const giovanniShip: MomShipRow[] = []; const jakeShip: MomShipRow[] = [];
+  for (const s of sorted) {
+    const k = s.lot_id ? kind.get(s.lot_id) ?? "" : "";
+    const ship = Number(s.shipping_paid) || 0;
+    if (isMomKind(k)) {
+      const cost = Number(s.cost_basis_total) || 0;
+      const price = Number(s.item_price) || 0;
+      const fees = Number(s.fees) || 0;
+      const left = round2(price + (Number(s.shipping_charged) || 0) - fees - ship);
+      const profit = Number(s.profit) || 0;
+      const half = Number(s.mom_share) || 0;
+      const owed = round2(cost + half + (s.ship_paid_by === "mom" ? ship : 0));
+      own.push({ id: s.id, date: s.sold_on, name: s.product_name, qty: Number(s.qty) || 1, channel: s.channel ?? "tcgplayer", cost, price, shipping: ship, fees, left, profit, half, owed });
+    } else if (s.ship_paid_by === "mom" && ship > 0) {
+      const row: MomShipRow = { id: s.id, date: s.sold_on, name: s.product_name, price: Number(s.item_price) || 0, shipping: ship };
+      if (k === "giovanni") giovanniShip.push(row); else if (k === "jake") jakeShip.push(row); else judahShip.push(row);
+    }
+  }
+  const t = (f: (r: MomOwnRow) => number) => round2(own.reduce((a, r) => a + f(r), 0));
+  const ownTotals = { cost: t((r) => r.cost), price: t((r) => r.price), shipping: t((r) => r.shipping), fees: t((r) => r.fees), left: t((r) => r.left), profit: t((r) => r.profit), half: t((r) => r.half), owed: t((r) => r.owed) };
+  const shipTotal = round2([...judahShip, ...giovanniShip, ...jakeShip].reduce((a, r) => a + r.shipping, 0));
+  return { own, judahShip, giovanniShip, jakeShip, ownTotals, shipTotal, owedFromSales: round2(ownTotals.owed + shipTotal) };
+}
+
+export interface GioShareRow { id: string; date: string; name: string; whose: string; item: number; fees: number; share: number }
+export interface GioFrontRow { id: string; date: string; name: string; shipping: number; paidBy: string }
+export interface GiovanniSheet { shareRows: GioShareRow[]; frontedRows: GioFrontRow[]; share: number; fronted: number }
+
+/** The sheet behind "Giovanni owes you" (DECISIONS #75): every TCGplayer
+ *  sale of Judah's, Mom's or Jake's product with the share it put on
+ *  Giovanni's bill (item + shipping charged − fees, gross of postage —
+ *  DECISIONS #66), and every postage charge fronted on his own product.
+ *  Totals equal giovanniShareGross and frontedShipping by construction. */
+export function giovanniSheet(sales: BalanceSheetSale[], lots: LotKind[]): GiovanniSheet {
+  const kind = new Map(lots.map((l) => [l.id, l.owner_kind]));
+  const whose = (k: string) => (k === "jake" ? "Jake" : isMomKind(k) ? "Mom" : "Judah");
+  const sorted = [...sales].sort((a, b) => (a.sold_on < b.sold_on ? -1 : a.sold_on > b.sold_on ? 1 : a.product_name < b.product_name ? -1 : 1));
+  const shareRows: GioShareRow[] = []; const frontedRows: GioFrontRow[] = [];
+  for (const s of sorted) {
+    if (s.channel && s.channel !== "tcgplayer") continue;
+    if (!s.lot_id) continue;
+    const k = kind.get(s.lot_id) ?? "";
+    if (k === "giovanni") {
+      const ship = Number(s.shipping_paid) || 0;
+      if (ship > 0) frontedRows.push({ id: s.id, date: s.sold_on, name: s.product_name, shipping: ship, paidBy: s.ship_paid_by === "mom" ? "Mom" : "Judah" });
+    } else {
+      shareRows.push({ id: s.id, date: s.sold_on, name: s.product_name, whose: whose(k), item: Number(s.item_price) || 0, fees: Number(s.fees) || 0, share: round2((Number(s.item_price) || 0) + (Number(s.shipping_charged) || 0) - (Number(s.fees) || 0)) });
+    }
+  }
+  return { shareRows, frontedRows, share: round2(shareRows.reduce((a, r) => a + r.share, 0)), fronted: round2(frontedRows.reduce((a, r) => a + r.shipping, 0)) };
+}
